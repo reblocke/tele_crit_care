@@ -745,6 +745,18 @@ gen hospital_los = hospitaldischargedatetime - hospitaladmissiondatetime
 gen icu_los = icudischargedatetime - icuadmissiondatetime
 bysort hosp_disch_loc: sum icu_los, detail // median LOS prior to transfer is 2.9 days. n = 315
 
+//Replace missing chronic condition values with 0's. 
+
+* List all variables starting with "cnd_"
+ds cnd_*, has(type numeric)
+
+* Loop through each variable and replace missing values with 0
+foreach var of varlist `r(varlist)' {
+    replace `var' = 0 if missing(`var')
+}
+
+
+
 
 //TODO: make a long and a wide version.
 

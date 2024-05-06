@@ -51,7 +51,7 @@ restore
 
 /*
 ???
-TUAKALAU,LELEA K - 2 admissions, both are counted as a death, but the 1st one has a discharge to an unknown location - then the second admission occurs 2 days after. 
+*** - 2 admissions, both are counted as a death, but the 1st one has a discharge to an unknown location - then the second admission occurs 2 days after. 
 
 [ ] ADJUST THIS: DO NOT REMOVE READMITS? For the merged dataset, I only kept the first admission and dropped the rest (we'd make the stats more complicated if we try to allow for multiple admissions per person; and it seems like most of the apache in-hosp mort data is missing from the readmits), but some of the outcome logic isn't perfect because it probably shouldn't count as in-hospital mortality if they are discharged, then later readmitted and die. 
 
