@@ -308,8 +308,14 @@ drop billing_entity_name
 rename code_status code_string
 encode resuscitation_status, gen(code_status)
 drop resuscitation_status
-rename current_start_dts start_code_status
-rename discontinue_effective_dts stop_code_status
+
+gen start_code_status = dofc(current_start_dts)
+format start_code_status %td
+drop current_start_dts
+
+gen stop_code_status = dofc(discontinue_effective_dts)
+format stop_code_status %td
+drop discontinue_effective_dts
 
 //hospitaladmissiondatetime hospitaldischargedatetime == case_admit_dts case_disch_dts
 gen hospitaladmissiondatetime = dofc(case_admit_dts)
@@ -320,14 +326,23 @@ gen hospitaldischargedatetime = dofc(case_disch_dts)
 format hospitaldischargedatetime %td
 drop case_disch_dts
 
+//generate: time since admit_start, time since admit_end, duration of status. 
+gen hosp_day_start_code_status = start_code_status - hospitaladmissiondatetime
+gen hosp_day_stop_code_status = stop_code_status - hospitaladmissiondatetime
+gen dur_code_status = hosp_day_stop_code_status - hosp_day_start_code_status
+
 gen hosp_admit_name = string(hospitaladmissiondatetime, "%td") + "-" + string(hospitalaccountnumber, "%12.0f")
 label variable hosp_admit_name "Hosp-Identifier: Admit date - FIN"
 quietly levelsof hosp_admit_name, local(hospAdmitNameLevels)
 di "Number of unique Hosp Admits: " `: word count `hospAdmitNameLevels''
 
 egen code_order_rank = rank(start_code_status), by(hosp_admit_name) unique // is this 1st-8th Code Status?
+egen num_code_status = max(code_order_rank), by(hosp_admit_name)
+label variable num_code_status "Number of Code Statuses During Admission"
+
+
 // bysort hospitalaccountnumber: tab code_order_rank // this is to ensure there are no 'ties' - unique in the command above makes it so they are broken arbitrarily if two status entered at same time. 
-reshape wide code_status code_string start_code_status stop_code_status, i(hosp_admit_name) j(code_order_rank)
+reshape wide code_status code_string start_code_status stop_code_status hosp_day_start_code_status hosp_day_stop_code_status dur_code_status, i(hosp_admit_name) j(code_order_rank)
 save code_status_data, replace
 clear
 
@@ -717,7 +732,6 @@ quietly levelsof icu_admit_name, local(icuAdmitNameLevels)
 di "Number of unique MRN: " `: word count `mrnLevels''
 di "Number of unique ICU Admits: " `: word count `icuAdmitNameLevels''
 
-
 //this one has to merge on hospital FIN-Date combo - hosp_admit_name
 gen hosp_admit_name = string(hospitaladmissiondatetime, "%td") + "-" + string(hospitalaccountnumber, "%12.0f")
 label variable hosp_admit_name "Hosp-Identifier: Admit date - FIN"
@@ -742,7 +756,9 @@ encode admittingicu, gen(adm_icu)
 drop admittingicu
 
 gen hospital_los = hospitaldischargedatetime - hospitaladmissiondatetime
+label variable hospital_los "Length of Stay (Hospitalization)"
 gen icu_los = icudischargedatetime - icuadmissiondatetime
+label variable icu_los "Length of Stay (Hospitalization)"
 bysort hosp_disch_loc: sum icu_los, detail // median LOS prior to transfer is 2.9 days. n = 315
 
 //Replace missing chronic condition values with 0's. 
@@ -755,10 +771,34 @@ foreach var of varlist `r(varlist)' {
     replace `var' = 0 if missing(`var')
 }
 
+/* Label by Tele-critical care status: 
+//List of ICUs that send transfers usually: AF_ICU, AV_ICU, CA_ICU, CC_ICU, ICU, LG_North Tower, PK_ICU, RV_ICU, 
+//List of ICUs that receive transfers, usually: IM_Coronary ICU, IM_Neuro ICU, IM_Shock Trauma, IM_Thoracic ICU, LD_ICU, MK_ICU, UV_F04 Intensive Care Unit, zzIM_Resp ICU
+// SG_ICU is about split
 
+*/
+//Labels are alphabetical, so: 
+//Tele / transferring: 1 2 3 4 5 11 13 14 
+//No Tele / acepting: 6 7 8 9 10 12 15 16 17 18
+recode adm_icu (6 7 8 9 10 12 15 16 17 18 = 0) (1 2 3 4 5 11 13 14 = 1), gen(tele_cc_icu) label(binary_lab)
+label variable tele_cc_icu "ICU w Tele-Critical Care?"
+
+// 1 = Referral Center, 2 = Tele, no transfer, 3 = tele transfer pre, 4 = tele transfer post
+gen tele_status = 1
+replace tele_status = 2 if tele_cc_icu == 1
+replace tele_status = 3 if pre_transfer == 1
+replace tele_status = 4 if post_transfer == 1
+
+label variable tele_status "Tele crit care and/or transfer status"
+label define tele_status_lab 1 "Referral Center" 2 "Tele-ICU, no transfer" 3  "Tele-ICU, pre-transfer" 4 "Tele-ICU, post transfer"
+label values tele_status tele_status_lab
+
+label variable dur_code_status1 "Duration (days) of First Code Status"
 
 
 //TODO: make a long and a wide version.
+
+
 
 /*---------------
 
@@ -799,10 +839,8 @@ label variable post_transfer "hospitalizatino is Post-Transfer?"
 label variable pre_or_post_transfer "Hospitalization either Pre or Post Transfer?"
 
 /* Save full dataset */ 
-
 save all_data, replace
 export excel using "all data.xlsx", firstrow(varlabels) keepcellfmt replace 
-
 
 /* Save just transfers dataset */ 
 drop if pre_or_post_transfer == 0 
@@ -811,19 +849,9 @@ order mrn patientname pre_transfer post_transfer hospital_billing
 save just_transfers, replace
 export excel using "just transfers.xlsx", firstrow(varlabels) keepcellfmt replace 
 
-
-
-
-bysort pre_transfer: sum icu_los, detail // median transfer time - 2.0 days into ICU (stayed 10.6 after)
-bysort pre_transfer: sum hospital_los, detail // median transfer time 3.7 days into hosp (stay 13.9 after)
-
-
-
-
 /* --------------
 These are redundant data-sets that are not currently needed; kept here fore now
 ---------------*/ 
-
 
 //Active treatments per admit.xlsx - also 3740 patients
 //No use for this data-sheet. - redundant but less granular than active treatments by day 
@@ -867,7 +895,4 @@ quietly levelsof mrn, local(mrnLevels)
 quietly levelsof icu_admit_name, local(icuAdmitNameLevels)
 di "Number of unique MRN: " `: word count `mrnLevels''
 di "Number of unique ICU Admits: " `: word count `icuAdmitNameLevels''
-
-
-
 
