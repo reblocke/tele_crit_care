@@ -11,6 +11,51 @@ Reminder: for active treaetments per day, chronic conditions initial group, and 
 ????
 
 
+[ ] add demographics spreadsheet to existing 
+[ ] create reviewer comparisons - calculate kappa for each (reconcile these all into reviewer 1 and reviewer 2)
+[ ] add apache scores (or is this in there already?)
+
+
+
+Such a boss for turning this around so quickly. Thanks man!
+ 
+Not seeing anything too interesting here, which isn't a surprise. I'm waiting on one of the residents to finish his portion of the chart review then we'll have all the intubated patients sorted out. I think it may be more interesting to do a similar thing with code status on just the intubated patients who transfer and compare to intubated referral center patients. Then we can see if there's any difference in the sickest patients with an easier analysis. Let me know your thoughts.
+
+[ ] code status on transferred patients compared to... matched? 
+
+
+Other things I still to do:
+ last code status logic (e.g. for prior to transfer or prior to death)
+Haven't incorporated APACHE etc. – treating it like a time-varying confounder will be tricky, but baseline is super easy if you want it now.
+Sankey diagram.
+
+
+
+ 
+As far as other priorities but not urgent:
+[ ] APACHE/APS/ICU mortality on day of transfer for those that transition to DNR and those that stay full-code
+[ ] Same scores for transfer patients who survive vs die
+
+Sankey diagram: What do you think about this? Looking at this initial stuff I'm not sure it's going to tell us that much that isn't obvious between the groups. I'm starting to think a comparison using our intubated cohort may have more meat if we find differences between the groups-- or if the above shows something. e.g. If ICU mortality above x% consider early palliative consult upon arrival or something like that.
+ 
+
+
+Chart Review:
+There are five files for each reviewer (me and four residents). 
+
+[ ] I attached another file with how the patients are distributed. All patients are reviewed twice. I think the most important part of the review is really the transfer reason and SOC. We'll want to ***only include those that have transfer_reason = intubation *** . If there is disagreement between reviewers we'll need to run back in and reconcile. 
+
+Other things that I feel confident in are SOC (standard of care), which I spent time defining with the residents but essentially is SOC for COVID patients in the ICU prior to transfer. If blank or disagreement I'll need to go review that patient. Dex, Remd, Toci/bari/tofa is reliable. ABX is less reliable since it was taken from notes and we were looking for acknowledgement of a treatment plan for 3-5 days rather than just 24 hours, etc. HCQ/iver can be ignored. There's only a handful of refusals, so probably not worth including. TR_support, Proc & proc_timing is reliable. This is what support they were transferred on, which procedures were completed prior to transfer and how many days prior to transfer were procedures completed (most are zero or occur on day of transfer). Proc_comp, central line, intubation and cardiac_arrest are reliable. Tr_comp, arr_interventions are reliable. I wouldn't worry about the REC_ columns. This was really had to reliably find during review. Sheet two has all the column definitions. Overall the patients just need to be matched up between reviewers for a kappa for SOC/TR_reason primarily and then we'll have to reconcile any differences there. The rest we can match secondarily, but don't think we really need to reconcile differences. Let me know if you have other thoughts.
+ 
+ 
+ 
+ 
+Analysis:
+I attached my last PGR with a breakdown of what we were thinking to help jog your memory since it's been a few months. Just jump to slide 25. I think most of the stuff I looked at is self-explanatory in the slides. I did this all from pivot tables in excel, so if you don't mind crunching everything with stata I'm sure it'll be more reliable. The one thing I couldn't work in pivot tables was the transfer time. The off the floor time is buried in Hospital discharge date/time and arrival time is ICU admission date/time. Think it would be interesting to look at prolonged transfer time and arrival SOI scores. The only interesting trend I found were the APACHE/APS scores. The intubated & transferred patients had a higher APACHE/APS with a declining trend for the 72 hours following transfer while the intubated/no transfer had an increasing APACHE/APS trend, which is supportive of what we were thinking regarding transfer as a potential harmful intervention immediately after transfer. There's some COVID data that seems to support this, as well. I also attached the missing demographic data that needs to be added to the main dataset.
+ 
+
+
+
 */ 
 
 cd "/Users/blocke/Box Sync/Residency Personal Files/Scholarly Work/Locke Research Projects/Tele Crit Care/tele_crit_care" //Mac version
@@ -192,6 +237,11 @@ tab tele_status
 
 // 1 = Referral Center, 2 = Tele, no transfer, 3 = tele transfer pre, 4 = tele transfer post
 
+
+//baseline comorbidities etc. 
+
+
+
 /* 
 Baseline code status for 1) tele, no transfer 2) tele, transfer 3) referral
 Total code status changes during ICU admission and split into the above subgroups
@@ -229,8 +279,20 @@ percent_n percsign("%") iqrmiddle(",") sdleft(" (±") sdright(")") onecol total(
 
 
 
+
+
+
+//APACHE/APS/ICU mortality on day of transfer for those that transition to DNR and those that stay full-code
+
+
+
+//Also needs 'last' logic
+
+
 //TODO: last code status
 //TODO: group admissions involving a transfer
+
+//Probably due a censoring of code status type setup - e.g. did the duration end because of a change to the code status, or because 
 
 /*
 TODO: Timing of code status change prior to transfer and after transfer, for example, DNR/DNI and then switch to full code before transfer, or full code on arrival but switch to DNR/DNI within 24-48-72 hours after transfer.
@@ -245,7 +307,13 @@ It may be interesting to look at SOI with APACHE/predicted mortality, especially
 Similarly, we could look at total ICU LOS, limited to the referral group and transfer group. Is there a cutoff where most will ultimately switch to DNR/DNI?
 
 We initially talked about a Sankey diagram, which seems like a great idea.
+j....Sankey diagram: What do you think about this? Looking at this initial stuff I'm not sure it's going to tell us that much that isn't obvious between the groups. I'm starting to think a comparison using our intubated cohort may have more meat if we find differences between the groups-- or if the above shows something. e.g. If ICU mortality above x% consider early palliative consult upon arrival or something like that.
+ 
 */ 
+
+
+
+//Same scores for transfer patients who survive vs die
 
 
 

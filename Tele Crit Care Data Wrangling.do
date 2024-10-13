@@ -771,32 +771,6 @@ foreach var of varlist `r(varlist)' {
     replace `var' = 0 if missing(`var')
 }
 
-/* Label by Tele-critical care status: 
-//List of ICUs that send transfers usually: AF_ICU, AV_ICU, CA_ICU, CC_ICU, ICU, LG_North Tower, PK_ICU, RV_ICU, 
-//List of ICUs that receive transfers, usually: IM_Coronary ICU, IM_Neuro ICU, IM_Shock Trauma, IM_Thoracic ICU, LD_ICU, MK_ICU, UV_F04 Intensive Care Unit, zzIM_Resp ICU
-// SG_ICU is about split
-
-*/
-//Labels are alphabetical, so: 
-//Tele / transferring: 1 2 3 4 5 11 13 14 
-//No Tele / acepting: 6 7 8 9 10 12 15 16 17 18
-recode adm_icu (6 7 8 9 10 12 15 16 17 18 = 0) (1 2 3 4 5 11 13 14 = 1), gen(tele_cc_icu) label(binary_lab)
-label variable tele_cc_icu "ICU w Tele-Critical Care?"
-
-// 1 = Referral Center, 2 = Tele, no transfer, 3 = tele transfer pre, 4 = tele transfer post
-gen tele_status = 1
-replace tele_status = 2 if tele_cc_icu == 1
-replace tele_status = 3 if pre_transfer == 1
-replace tele_status = 4 if post_transfer == 1
-
-label variable tele_status "Tele crit care and/or transfer status"
-label define tele_status_lab 1 "Referral Center" 2 "Tele-ICU, no transfer" 3  "Tele-ICU, pre-transfer" 4 "Tele-ICU, post transfer"
-label values tele_status tele_status_lab
-
-label variable dur_code_status1 "Duration (days) of First Code Status"
-
-
-//TODO: make a long and a wide version.
 
 
 
@@ -838,6 +812,37 @@ label variable pre_transfer "Hospitalization is Pre-Transfer?"
 label variable post_transfer "hospitalizatino is Post-Transfer?"
 label variable pre_or_post_transfer "Hospitalization either Pre or Post Transfer?"
 
+
+/* Label by Tele-critical care status: 
+//List of ICUs that send transfers usually: AF_ICU, AV_ICU, CA_ICU, CC_ICU, ICU, LG_North Tower, PK_ICU, RV_ICU, 
+//List of ICUs that receive transfers, usually: IM_Coronary ICU, IM_Neuro ICU, IM_Shock Trauma, IM_Thoracic ICU, LD_ICU, MK_ICU, UV_F04 Intensive Care Unit, zzIM_Resp ICU
+// SG_ICU is about split
+
+*/
+//Labels are alphabetical, so: 
+//Tele / transferring: 1 2 3 4 5 11 13 14 
+//No Tele / acepting: 6 7 8 9 10 12 15 16 17 18
+recode adm_icu (6 7 8 9 10 12 15 16 17 18 = 0) (1 2 3 4 5 11 13 14 = 1), gen(tele_cc_icu) label(binary_lab)
+label variable tele_cc_icu "ICU w Tele-Critical Care?"
+
+// 1 = Referral Center, 2 = Tele, no transfer, 3 = tele transfer pre, 4 = tele transfer post
+gen tele_status = 1
+replace tele_status = 2 if tele_cc_icu == 1
+replace tele_status = 3 if pre_transfer == 1
+replace tele_status = 4 if post_transfer == 1
+
+label variable tele_status "Tele crit care and/or transfer status"
+label define tele_status_lab 1 "Referral Center" 2 "Tele-ICU, no transfer" 3  "Tele-ICU, pre-transfer" 4 "Tele-ICU, post transfer"
+label values tele_status tele_status_lab
+
+label variable dur_code_status1 "Duration (days) of First Code Status"
+
+
+//TODO: make a long and a wide version.
+
+
+
+
 /* Save full dataset */ 
 save all_data, replace
 export excel using "all data.xlsx", firstrow(varlabels) keepcellfmt replace 
@@ -848,6 +853,12 @@ drop icu_admit_name _merge* hosp_admit_name
 order mrn patientname pre_transfer post_transfer hospital_billing
 save just_transfers, replace
 export excel using "just transfers.xlsx", firstrow(varlabels) keepcellfmt replace 
+
+
+
+
+
+
 
 /* --------------
 These are redundant data-sets that are not currently needed; kept here fore now
