@@ -2,7 +2,7 @@
 clear
 
 // Brian Locke
-// Last updated May 5 2024
+// Last updated Oct 13 2024
 
 
 /* 
@@ -95,8 +95,8 @@ e.g.****L - reintubation noted ICU day 2, but
 
 */ 
 
-cd "/Users/blocke/Box Sync/Residency Personal Files/Scholarly Work/Locke Research Projects/Tele Crit Care/tele_crit_care" //Mac version
-//cd "C:\Users\reblo\Box\Residency Personal Files\Scholarly Work\Locke Research Projects\Tele Crit Care\tele_crit_care" //PC version
+//cd "/Users/blocke/Box Sync/Residency Personal Files/Scholarly Work/Locke Research Projects/Tele Crit Care/tele_crit_care" //Mac version
+cd "C:\Users\reblo\Box\Residency Personal Files\Scholarly Work\Locke Research Projects\Tele Crit Care\tele_crit_care" //PC version
 
 // [ ] TODO: is this necessary?
 program define datetime 
@@ -838,7 +838,357 @@ label values tele_status tele_status_lab
 label variable dur_code_status1 "Duration (days) of First Code Status"
 
 
-//TODO: make a long and a wide version.
+//[ ] TODO: make a long and a wide version.
+
+
+
+
+
+
+save complete_sans_ratings, replace
+clear
+
+//Ratings 
+
+/* REVIEWER 1 */
+import excel using "Raw Data\Reviewer 1 - RB_completed.xlsx", sheet("Sheet1") firstrow case(lower) clear
+describe
+ds /* Label each variable by the reviewer */ 
+foreach var in `r(varlist)' {
+    if "`var'" != "fin" {
+        rename `var' rev1_`var'
+    }
+}
+drop if missing(fin)
+duplicates report fin
+
+replace rev1_soc = "No" if missing(rev1_soc)
+replace rev1_dex = "Yes" if missing(rev1_dex)
+replace rev1_remd = "Yes" if missing(rev1_remd)
+replace rev1_tocibaritofa = "No" if missing(rev1_tocibaritofa)
+replace rev1_abx = "No" if missing(rev1_abx)
+replace rev1_hcq = "No" if missing(rev1_hcq)
+drop rev1_iver
+gen rev1_iver = "No"
+replace rev1_transfer_reason = "Other" if missing(rev1_transfer_reason)
+replace rev1_tr_nonresp = "Not Applicable" if missing(rev1_tr_nonresp)
+replace rev1_tr_comorb = "None" if missing(rev1_tr_comorb)
+replace rev1_refuses = "No" if missing(rev1_refuses)
+replace rev1_refuses_rea = "Not Applicable" if missing(rev1_refuses_rea)
+//replace rev1_refuses_tr = "Not Applicable" if missing(rev1_refuses_tr)
+drop rev1_refuses_tr 
+gen rev1_refuses_tr = "No"
+replace rev1_tr_support = "Other" if missing(rev1_tr_support)
+replace rev1_proc = "None" if missing(rev1_proc)
+replace rev1_proc_time = 9999 if missing(rev1_proc_time)
+replace rev1_proc_comp = "Not Applicable" if rev1_proc == "None"
+replace rev1_proc_comp = "No" if missing(rev1_proc_comp)
+drop rev1_central_line
+gen rev1_central_line = "No"
+replace rev1_intubation = "Not Applicable" if strpos(rev1_proc, "ETT") == 0
+replace rev1_intubation = "No" if missing(rev1_intubation)
+drop rev1_cardiac_arr
+gen rev1_cardiac_arr = "No"
+replace rev1_tr_comp = "No" if missing(rev1_tr_comp) 
+replace rev1_arr_inter = "No" if missing(rev1_arr_inter)
+drop rev1_rec_abx rev1_rec_tte rev1_rec_ct rev1_rec_bronch rev1_rec_free
+gen rev1_rec_abx = "No"
+gen rev1_rec_tte = "No"
+gen rev1_rec_ct = "No"
+gen rev1_rec_bronch = "No"
+gen rev1_rec_free = "No"
+replace rev1_ad = "No additional" if missing(rev1_ad)
+save reviewer_1, replace
+
+/* REVIEWER 2 */ 
+import excel using "Raw Data\Reviewer 2_BK_completed.xlsx", sheet("Sheet1") firstrow case(lower) clear
+rename admitdate admit
+describe
+ds /* Label each variable by the reviewer */ 
+foreach var in `r(varlist)' {
+    if "`var'" != "fin" {
+        rename `var' rev2_`var'
+    }
+}
+duplicates report fin
+replace rev2_soc = "No" if missing(rev2_soc)
+replace rev2_dex = "Yes" if missing(rev2_dex)
+replace rev2_remd = "Yes" if missing(rev2_remd)
+replace rev2_tocibaritofa = "No" if missing(rev2_tocibaritofa)
+replace rev2_abx = "No" if missing(rev2_abx)
+drop rev2_hcq 
+gen rev2_hcq = "No" 
+drop rev2_iver
+gen rev2_iver = "No"
+replace rev2_transfer_reason = "Other" if missing(rev2_transfer_reason)
+replace rev2_tr_nonresp = "Not Applicable" if missing(rev2_tr_nonresp)
+replace rev2_tr_comorb = "None" if missing(rev2_tr_comorb)
+replace rev2_refuses = "No" if missing(rev2_refuses)
+replace rev2_refuses_rea = "Not Applicable" if missing(rev2_refuses_rea)
+//replace rev1_refuses_tr = "Not Applicable" if missing(rev1_refuses_tr)
+drop rev2_refuses_tr 
+gen rev2_refuses_tr = "No"
+replace rev2_tr_support = "Other" if missing(rev2_tr_support)
+replace rev2_proc = "None" if missing(rev2_proc)
+replace rev2_proc_time = 9999 if missing(rev2_proc_time)
+replace rev2_proc_comp = "Not Applicable" if rev2_proc == "None"
+replace rev2_proc_comp = "No" if missing(rev2_proc_comp)
+drop rev2_central_line
+gen rev2_central_line = "No"
+replace rev2_intubation = "Not Applicable" if strpos(rev2_proc, "ETT") == 0
+replace rev2_intubation = "No" if missing(rev2_intubation)
+drop rev2_cardiac_arr
+gen rev2_cardiac_arr = "No"
+replace rev2_tr_comp = "No" if missing(rev2_tr_comp) 
+replace rev2_arr_inter = "No" if missing(rev2_arr_inter)
+replace rev2_rec_abx = "No" if missing(rev2_rec_abx)
+replace rev2_rec_tte = "No" if missing(rev2_rec_tte)
+replace rev2_rec_ct = "No" if missing(rev2_rec_ct)
+replace rev2_rec_bronch = "No" if missing(rev2_rec_bronch)
+drop rev2_rec_free
+gen rev2_rec_free = "No"
+gen rev2_ad = "No additional"
+save reviewer_2, replace
+
+/* REVIEWER 3 */
+import excel using "Raw Data\Reviewer 3 CL_complete.xlsx", sheet("Sheet1") firstrow case(lower) clear
+describe
+ds /* Label each variable by the reviewer */ 
+foreach var in `r(varlist)' {
+    if "`var'" != "fin" {
+        rename `var' rev3_`var'
+    }
+}
+duplicates report fin
+duplicates examples fin
+//Duplicate 1245803134 FIN in reviewer 3 same ratings 
+duplicates drop fin, force
+replace rev3_soc = "No" if missing(rev3_soc)
+replace rev3_dex = "Yes" if missing(rev3_dex)
+replace rev3_remd = "Yes" if missing(rev3_remd)
+replace rev3_tocibaritofa = "No" if missing(rev3_tocibaritofa)
+replace rev3_abx = "No" if missing(rev3_abx)
+replace rev3_hcq = "No" if missing(rev3_hcq)
+drop rev3_iver
+gen rev3_iver = "No"
+replace rev3_transfer_reason = "Other" if missing(rev3_transfer_reason)
+replace rev3_tr_nonresp = "Not Applicable" if missing(rev3_tr_nonresp)
+replace rev3_tr_comorb = "None" if missing(rev3_tr_comorb)
+replace rev3_refuses = "No" if missing(rev3_refuses)
+replace rev3_refuses_rea = "Not Applicable" if missing(rev3_refuses_rea)
+replace rev3_refuses_tr = "Not Applicable" if missing(rev3_refuses_tr)
+replace rev3_tr_support = "Other" if missing(rev3_tr_support)
+replace rev3_proc = "None" if missing(rev3_proc)
+replace rev3_proc_time = 9999 if missing(rev3_proc_time)
+replace rev3_proc_comp = "Not Applicable" if rev3_proc == "None"
+replace rev3_proc_comp = "No" if missing(rev3_proc_comp)
+drop rev3_central_line
+gen rev3_central_line = "No"
+replace rev3_intubation = "Not Applicable" if strpos(rev3_proc, "ETT") == 0
+replace rev3_intubation = "No" if missing(rev3_intubation)
+replace rev3_cardiac_arr = "No" if missing(rev3_cardiac_arr)
+replace rev3_tr_comp = "No" if missing(rev3_tr_comp) 
+replace rev3_arr_inter = "No" if missing(rev3_arr_inter)
+replace rev3_rec_abx = "No" if missing(rev3_rec_abx)
+replace rev3_rec_tte = "No" if missing(rev3_rec_tte)
+replace rev3_rec_ct = "No" if missing(rev3_rec_ct)
+drop rev3_rec_bronch
+gen rev3_rec_bronch = "No"
+replace rev3_rec_free = "No" if missing(rev3_rec_free)
+replace rev3_ad = "No additional" if missing(rev3_ad)
+save reviewer_3, replace
+
+/* REVIEWER 4 */ 
+import excel using "Raw Data\Reviewer 4- KR_complete.xlsx", sheet("Sheet1") firstrow case(lower) clear
+describe
+ds /* Label each variable by the reviewer */ 
+foreach var in `r(varlist)' {
+    if "`var'" != "fin" {
+        rename `var' rev4_`var'
+    }
+}
+duplicates report fin // Identify duplicate rows based on the 'fin' variable
+duplicates examples fin
+duplicates drop fin, force
+//Duplicate 1245803134 FIN in reviewer 4 with slightly different info - what do you want me to use? 
+replace rev4_soc = "No" if missing(rev4_soc)
+replace rev4_dex = "Yes" if missing(rev4_dex)
+replace rev4_remd = "Yes" if missing(rev4_remd)
+replace rev4_tocibaritofa = "No" if missing(rev4_tocibaritofa)
+replace rev4_abx = "No" if missing(rev4_abx)
+replace rev4_hcq = "No" if missing(rev4_hcq)
+drop rev4_iver
+gen rev4_iver = "No"
+replace rev4_transfer_reason = "Other" if missing(rev4_transfer_reason)
+replace rev4_tr_nonresp = "Not Applicable" if missing(rev4_tr_nonresp)
+replace rev4_tr_comorb = "None" if missing(rev4_tr_comorb)  
+drop rev4_refuses
+gen rev4_refuses = "No"
+drop rev4_refuses_rea
+gen rev4_refuses_rea = "Not applicable"
+drop rev4_refuses_tr
+gen rev4_refuses_tr = "Not applicable"
+replace rev4_tr_support = "Other" if missing(rev4_tr_support)
+replace rev4_proc = "None" if missing(rev4_proc)
+replace rev4_proc_time = 9999 if missing(rev4_proc_time)
+drop rev4_proc_comp
+gen rev4_proc_comp = "No"
+replace rev4_proc_comp = "Not Applicable" if rev4_proc == "None"
+drop rev4_central_line
+gen rev4_central_line = "No"
+drop rev4_intubation
+gen rev4_intubation = "No" 
+replace rev4_intubation = "Not Applicable" if strpos(rev4_proc, "ETT") == 0
+drop rev4_cardiac_arr
+gen rev4_cardiac_arr = "No"
+replace rev4_tr_comp = "No" if missing(rev4_tr_comp) 
+replace rev4_arr_inter = "No" if missing(rev4_arr_inter)
+replace rev4_rec_abx = "No" if missing(rev4_rec_abx)
+replace rev4_rec_tte = "No" if missing(rev4_rec_tte)
+replace rev4_rec_ct = "No" if missing(rev4_rec_ct)
+drop rev4_rec_bronch
+gen rev4_rec_bronch = "No"
+replace rev4_rec_free = "No" if missing(rev4_rec_free)
+replace rev4_ad = "No additional" if missing(rev4_ad)
+save reviewer_4, replace
+
+/* REVIEWER 5 */
+import excel using "Raw Data\Reviewer 5, JG_completed.xlsx", sheet("Sheet1") firstrow case(lower) clear
+rename id fin
+rename admit_date admit
+rename tocibari tocibaritofa
+describe
+ds /* Label each variable by the reviewer */ 
+foreach var in `r(varlist)' {
+    if "`var'" != "fin" {
+        rename `var' rev5_`var'		
+    }
+}
+duplicates report fin
+replace rev5_soc = "No" if missing(rev5_soc)
+replace rev5_dex = "Yes" if missing(rev5_dex)
+replace rev5_remd = "Yes" if missing(rev5_remd)
+replace rev5_tocibaritofa = "No" if missing(rev5_tocibaritofa)
+replace rev5_abx = "No" if missing(rev5_abx)
+drop rev5_hcq
+gen rev5_hcq = "No"
+drop rev5_iver
+gen rev5_iver = "No"
+replace rev5_transfer_reason = "Other" if missing(rev5_transfer_reason)
+replace rev5_tr_nonresp = "Not Applicable" if missing(rev5_tr_nonresp)
+drop rev5_tr_comorb
+gen rev5_tr_comorb = "None"
+replace rev5_refuses = "No" if missing(rev5_refuses)
+replace rev5_refuses_rea = "Not applicable" if missing(rev5_refuses_rea)
+drop rev5_refuses_rea
+gen rev5_refuses_rea = "Not applicable"
+drop rev5_refuses_tr
+gen rev5_refuses_tr = "Not applicable"
+replace rev5_tr_support = "Other" if missing(rev5_tr_support)
+replace rev5_proc = "None" if missing(rev5_proc)
+replace rev5_proc_time = 9999 if missing(rev5_proc_time)
+replace rev5_proc_comp = "No" if missing(rev5_proc_comp)
+replace rev5_proc_comp = "Not Applicable" if rev5_proc == "None"
+drop rev5_central_line
+gen rev5_central_line = "No"
+replace rev5_intubation = "No" if missing(rev5_intubation)
+replace rev5_intubation = "Not Applicable" if strpos(rev5_proc, "ETT") == 0
+replace rev5_cardiac_arr = "No" if missing(rev5_cardiac_arr)
+replace rev5_tr_comp = "No" if missing(rev5_tr_comp) 
+replace rev5_arr_inter = "No" if missing(rev5_arr_inter)
+replace rev5_rec_abx = "No" if missing(rev5_rec_abx)
+replace rev5_rec_tte = "No" if missing(rev5_rec_tte)
+replace rev5_rec_ct = "No" if missing(rev5_rec_ct)
+drop rev5_rec_bronch
+gen rev5_rec_bronch = "No"
+replace rev5_rec_free = "No" if missing(rev5_rec_free)
+gen rev5_ad = "No additional"
+save reviewer_5, replace
+
+clear
+/* NOTE, ORDER MATTERS FOR THESE MERGES AND THE _MERGE VARIABLES BELOW */ 
+use reviewer_1 
+merge 1:1 fin using reviewer_2, update generate(_merge_rev2)
+merge 1:1 fin using reviewer_3, update generate(_merge_rev3)
+merge 1:1 fin using reviewer_4, update generate(_merge_rev4)
+merge 1:1 fin using reviewer_5, update generate(_merge_rev5)
+
+ds /* Turn all byte variables into strings */ 
+foreach var in `r(varlist)' {
+    // Check if the variable is of type 'byte'
+    if "`: type `var''" == "byte" {
+        // Convert the byte variable to a string
+        tostring `var', replace
+    }
+}
+
+
+
+
+ds /* Label each variable by the reviewer */ 
+foreach var in `r(varlist)' {
+	if substr("`var'", 1, 7) != "_merge_" { //ignore _merge variables
+		if "`var'" != "fin" { //ignore fin - we will match on this
+			local varstem = substr("`var'", 6, .)
+			display "`varstem'"	
+			cap confirm variable first_`varstem' //check if has already been defined
+			if _rc != 0 { //hasn't been defined
+				local vartype: type `var'
+				// Create first_dex: first nonmissing value
+				if substr("`vartype'", 1, 3) == "str" {		
+					egen str first_`varstem' = rowfirst(rev1_`varstem' rev2_`varstem' rev3_`varstem' rev4_`varstem' rev5_`varstem')
+					egen str second_`varstem' = rowlast(rev1_`varstem' rev2_`varstem' rev3_`varstem' rev4_`varstem' rev5_`varstem')
+				}
+				else{ 
+					egen first_`varstem' = rowfirst(rev1_`varstem' rev2_`varstem' rev3_`varstem' rev4_`varstem' rev5_`varstem')
+					egen second_`varstem' = rowlast(rev1_`varstem' rev2_`varstem' rev3_`varstem' rev4_`varstem' rev5_`varstem')				
+				}
+			}
+		}
+	}
+}
+
+describe
+
+gen reviewer_one = . 
+gen reviewer_two = .
+
+replace reviewer_one = 1 if _merge_rev2 == 1 & _merge_rev4 == 1 
+replace reviewer_two = 5 if _merge_rev2 == 1 & _merge_rev4 == 1
+
+replace reviewer_one = 2 if _merge_rev2 == 2 & _merge_rev4 == 3
+replace reviewer_two = 4 if _merge_rev2 == 2 & _merge_rev4 == 3
+
+replace reviewer_one = 1 if _merge_rev2 == 3 & _merge_rev4 == 1
+replace reviewer_two = 2 if _merge_rev2 == 3 & _merge_rev4 == 1
+
+replace reviewer_one = 3 if _merge_rev4 == 3 & missing(_merge_rev2)
+replace reviewer_two = 4 if _merge_rev4 == 3 & missing(_merge_rev2)
+
+replace reviewer_one = 3 if _merge_rev4 == 1 & missing(_merge_rev2)
+replace reviewer_two = 5 if _merge_rev4 == 1 & missing(_merge_rev2)
+
+/* Remove placeholder */ 
+replace first_proc_time = . if first_proc_time == 9999
+replace second_proc_time = . if second_proc_time == 9999
+
+
+
+/* Discard Columns we're no longer using */ 
+
+keep fin first_admit second_admit first_soc second_soc first_dex second_dex first_remd second_remd first_tocibaritofa second_tocibaritofa first_abx second_abx first_hcq second_hcq first_transfer_reason second_transfer_reason first_tr_nonresp second_tr_nonresp first_tr_comorb second_tr_comorb first_refuses second_refuses first_refuses_rea second_refuses_rea first_tr_support second_tr_support first_proc second_proc first_proc_time second_proc_time first_proc_comp second_proc_comp first_intubation second_intubation first_tr_comp second_tr_comp first_arr_inter second_arr_inter first_iver second_iver first_refuses_tr second_refuses_tr first_central_line second_central_line first_cardiac_arr second_cardiac_arr first_rec_abx second_rec_abx first_rec_tte second_rec_tte first_rec_ct second_rec_ct first_rec_bronch second_rec_bronch first_rec_free second_rec_free reviewer_one reviewer_two
+
+
+/* Calculate Agreement Statistics */ 
+
+
+SOC kappa
+
+
+
+
+
+
 
 
 
@@ -853,6 +1203,27 @@ drop icu_admit_name _merge* hosp_admit_name
 order mrn patientname pre_transfer post_transfer hospital_billing
 save just_transfers, replace
 export excel using "just transfers.xlsx", firstrow(varlabels) keepcellfmt replace 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
