@@ -1122,9 +1122,6 @@ foreach var in `r(varlist)' {
     }
 }
 
-
-
-
 ds /* Label each variable by the reviewer */ 
 foreach var in `r(varlist)' {
 	if substr("`var'", 1, 7) != "_merge_" { //ignore _merge variables
@@ -1172,7 +1169,9 @@ replace reviewer_two = 5 if _merge_rev4 == 1 & missing(_merge_rev2)
 replace first_proc_time = . if first_proc_time == 9999
 replace second_proc_time = . if second_proc_time == 9999
 
-
+format first_admit %td
+format second_admit %td
+format fin %15.0f
 
 /* Discard Columns we're no longer using */ 
 
@@ -1180,13 +1179,293 @@ keep fin first_admit second_admit first_soc second_soc first_dex second_dex firs
 
 
 /* Calculate Agreement Statistics */ 
+label define bin_label 0 "No" 1 "Yes"
+
+//Std of Care
+encode first_soc, gen(first_soc_temp)
+recode first_soc_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop first_soc
+rename first_soc_temp first_soc
+label values first_soc bin_label
+label variable first_soc "Std of Care, Rater 1"
+
+encode second_soc, gen(second_soc_temp)
+recode second_soc_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop second_soc
+rename second_soc_temp second_soc
+label values second_soc bin_label
+label variable first_soc "Std of Care, Rater 2"
+
+tab first_soc second_soc
+kap first_soc second_soc
+
+//Dexamethasone
+encode first_dex, gen(first_dex_temp)
+recode first_dex_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop first_dex
+rename first_dex_temp first_dex
+label values first_dex bin_label
+label variable first_dex "Dexamethasone, Rater 1"
+
+encode second_dex, gen(second_dex_temp)
+recode second_dex_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop second_dex
+rename second_dex_temp second_dex
+label values second_dex bin_label
+label variable second_dex "Dexamethasone, Rater 2"
+
+tab first_dex second_dex
+kap first_dex second_dex
+
+//Remdesevir
+encode first_remd, gen(first_remd_temp)
+recode first_remd_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop first_remd
+rename first_remd_temp first_remd
+label values first_remd bin_label
+label variable first_remd "Remdesevir, Rater 1"
+
+encode second_remd, gen(second_remd_temp)
+recode second_remd_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop second_remd
+rename second_remd_temp second_remd
+label values second_remd bin_label
+label variable second_remd "Remdesevir, Rater 2"
+
+tab first_remd second_remd
+kap first_remd second_remd
+
+// Toci, Bari, Tofa
+encode first_tocibaritofa, gen(first_tocibaritofa_temp)
+recode first_tocibaritofa_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop first_tocibaritofa
+rename first_tocibaritofa_temp first_tocibaritofa
+label values first_tocibaritofa bin_label
+label variable first_tocibaritofa "Toci/Bari/Tofa, Rater 1"
+
+encode second_tocibaritofa, gen(second_tocibaritofa_temp)
+recode second_tocibaritofa_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop second_tocibaritofa
+rename second_tocibaritofa_temp second_tocibaritofa
+label values second_tocibaritofa bin_label
+label variable second_tocibaritofa "Toci/Bari/Tofa, Rater 2"
+
+tab first_tocibaritofa second_tocibaritofa
+kap first_tocibaritofa second_tocibaritofa
+
+// Antibiotics
+encode first_abx, gen(first_abx_temp)
+recode first_abx_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop first_abx
+rename first_abx_temp first_abx
+label values first_abx bin_label
+label variable first_abx "Antibiotics, Rater 1"
+
+encode second_abx, gen(second_abx_temp)
+recode second_abx_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop second_abx
+rename second_abx_temp second_abx
+label values second_abx bin_label
+label variable second_abx "Antibiotics, Rater 2"
+
+tab first_abx second_abx
+kap first_abx second_abx
+
+// HCQ
+encode first_hcq, gen(first_hcq_temp)
+recode first_hcq_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop first_hcq
+rename first_hcq_temp first_hcq
+label values first_hcq bin_label
+label variable first_hcq "HCQ, Rater 1"
+
+encode second_hcq, gen(second_hcq_temp)
+recode second_hcq_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop second_hcq
+rename second_hcq_temp second_hcq
+label values second_hcq bin_label
+label variable second_hcq "HCQ, Rater 2"
+
+tab first_hcq second_hcq
+kap first_hcq second_hcq
+
+// Ivermectin
+encode first_iver, gen(first_iver_temp)
+recode first_iver_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop first_iver
+rename first_iver_temp first_iver
+label values first_iver bin_label
+label variable first_iver "Ivermectin, Rater 1"
+
+encode second_iver, gen(second_iver_temp)
+recode second_iver_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop second_iver
+rename second_iver_temp second_iver
+label values second_iver bin_label
+label variable second_iver "HCQ, Rater 2"
+
+tab first_iver second_hcq
+kap first_hcq second_hcq
+
+//Transfer reason
+encode first_transfer_reason, gen(first_transfer_reason_temp)
+drop first_transfer_reason
+rename first_transfer_reason_temp first_transfer_reason
+label variable first_transfer_reason "Transfer Reason, Rater 1"
+
+encode second_transfer_reason, gen(second_transfer_reason_temp)
+drop second_transfer_reason
+rename second_transfer_reason_temp second_transfer_reason
+label variable second_transfer_reason "Transfer Reason, Rater 2"
+
+tab first_transfer_reason second_transfer_reason
+kap first_transfer_reason second_transfer_reason
+
+//Non-resp reason
+encode first_tr_nonresp, gen(first_tr_nonresp_temp)
+drop first_tr_nonresp
+rename first_tr_nonresp_temp first_tr_nonresp
+label variable first_tr_nonresp "Transfer Reason - Non-resp, Rater 1"
+
+encode second_tr_nonresp, gen(second_tr_nonresp_temp)
+drop second_tr_nonresp
+rename second_tr_nonresp_temp second_tr_nonresp
+label variable second_tr_nonresp "Transfer Reason - Non-resp, Rater 2"
+
+tab first_tr_nonresp second_tr_nonresp
+kap first_tr_nonresp second_tr_nonresp
+
+//Comorbid Transfer reson
+encode first_tr_comorb, gen(first_tr_comorb_temp)
+drop first_tr_comorb
+rename first_tr_comorb_temp first_tr_comorb
+label variable first_tr_comorb "Transfer Reason - Comorbidity, Rater 1"
+
+encode second_tr_comorb, gen(second_tr_comorb_temp)
+drop second_tr_comorb
+rename second_tr_comorb_temp second_tr_comorb
+label variable second_tr_comorb "Transfer Reason - Comorbidity, Rater 2"
+
+tab first_tr_comorb second_tr_comorb
+kap first_tr_comorb second_tr_comorb
+
+// Refuses Transfer
+encode first_refuses, gen(first_refuses_temp)
+recode first_refuses_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop first_refuses
+rename first_refuses_temp first_refuses
+label values first_refuses bin_label
+label variable first_refuses "Refuses Transfer, Rater 1"
+
+encode second_refuses, gen(second_refuses_temp)
+recode second_refuses_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
+drop second_refuses
+rename second_refuses_temp second_refuses
+label values second_refuses bin_label
+label variable second_refuses "Refuses Transfer, Rater 2"
+
+tab first_refuses second_refuses
+kap first_refuses second_refuses
+
+// Refuses Transfer
+encode first_refuses_rea, gen(first_refuses_rea_temp)
+drop first_refuses_rea
+rename first_refuses_rea_temp first_refuses_rea
+label variable first_refuses_rea "Refuses Transfer Reason, Rater 1"
+
+replace second_refuses_rea = subinstr(second_refuses_rea, "Not applicable", "Not Applicable", .)
+encode second_refuses_rea, gen(second_refuses_rea_temp)
+drop second_refuses_rea
+rename second_refuses_rea_temp second_refuses_rea
+label variable second_refuses_rea "Refuses Transfer, Rater 2"
+
+tab first_refuses_rea second_refuses_rea
+kap first_refuses_rea second_refuses_rea
+
+//Transfer support
+encode first_tr_support, gen(first_tr_support_temp)
+drop first_tr_support
+rename first_tr_support_temp first_tr_support
+label variable first_tr_support "Transfer Support, Rater 1"
+
+encode second_tr_support, gen(second_tr_support_temp)
+drop second_tr_support
+rename second_tr_support_temp second_tr_support
+label variable second_tr_support "Transfer Support, Rater 2"
+
+tab first_tr_support second_tr_support
+kap first_tr_support second_tr_support
+
+//Procedures
+encode first_proc, gen(first_proc_temp)
+drop first_proc
+rename first_proc_temp first_proc
+label variable first_proc "Procedure, Rater 1"
+
+encode second_proc, gen(second_proc_temp)
+drop second_proc
+rename second_proc_temp second_proc
+label variable second_proc "Procedure, Rater 2"
+
+tab first_proc second_proc
+kap first_proc second_proc
+
+//Procedure Complications
+encode first_proc_comp, gen(first_proc_comp_temp)
+drop first_proc_comp
+rename first_proc_comp_temp first_proc_comp
+label variable first_proc_comp "Procedure Complications, Rater 1"
+
+encode second_proc_comp, gen(second_proc_comp_temp)
+drop second_proc_comp
+rename second_proc_comp_temp second_proc_comp
+label variable second_proc_comp "Procedure Complications, Rater 2"
+
+tab first_proc_comp second_proc_comp
+kap first_proc_comp second_proc_comp
 
 
-SOC kappa
+//Intubation
+encode first_intubation, gen(first_intubation_temp)
+drop first_intubation
+rename first_intubation_temp first_intubation
+label variable first_intubation "Intubation, Rater 1"
 
+encode second_intubation, gen(second_intubation_temp)
+drop second_intubation
+rename second_intubation_temp second_intubation
+label variable second_intubation "Intubation, Rater 2"
 
+tab first_intubation second_intubation
+kap first_intubation second_intubation
 
+//Transfer Complication
+encode first_tr_comp, gen(first_tr_comp_temp)
+drop first_tr_comp
+rename first_tr_comp_temp first_tr_comp
+label variable first_tr_comp "Transfer Complication, Rater 1"
 
+encode second_tr_comp, gen(second_tr_comp_temp)
+drop second_tr_comp
+rename second_tr_comp_temp second_tr_comp
+label variable second_tr_comp "Transfer Complication, Rater 2"
+
+tab first_tr_comp second_tr_comp
+kap first_tr_comp second_tr_comp
+
+//Arr Inter
+encode first_arr_inter, gen(first_arr_inter_temp)
+drop first_arr_inter
+rename first_arr_inter_temp first_arr_inter
+label variable first_arr_inter "Arr Inter, Rater 1"
+
+encode second_arr_inter, gen(second_arr_inter_temp)
+drop second_arr_inter
+rename second_arr_inter second_arr_inter
+label variable second_arr_inter "Arr Inter, Rater 2"
+
+tab first_arr_inter second_arr_inter
+kap first_arr_inter second_arr_inter
 
 
 
