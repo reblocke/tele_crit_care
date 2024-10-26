@@ -95,8 +95,8 @@ e.g.****L - reintubation noted ICU day 2, but
 
 */ 
 
-//cd "/Users/blocke/Box Sync/Residency Personal Files/Scholarly Work/Locke Research Projects/Tele Crit Care/tele_crit_care" //Mac version
-cd "C:\Users\reblo\Box\Residency Personal Files\Scholarly Work\Locke Research Projects\Tele Crit Care\tele_crit_care" //PC version
+cd "/Users/blocke/Box Sync/Residency Personal Files/Scholarly Work/Locke Research Projects/Tele Crit Care/tele_crit_care" //Mac version
+//cd "C:\Users\reblo\Box\Residency Personal Files\Scholarly Work\Locke Research Projects\Tele Crit Care\tele_crit_care" //PC version
 
 // [ ] TODO: is this necessary?
 program define datetime 
@@ -771,6 +771,9 @@ foreach var of varlist `r(varlist)' {
     replace `var' = 0 if missing(`var')
 }
 
+
+
+preserve //temporary 
 
 
 
@@ -1468,9 +1471,18 @@ tab first_arr_inter second_arr_inter
 kap first_arr_inter second_arr_inter
 
 
+//
+/* Save full dataset */ 
+save rater_data, replace
+export excel using "rater data.xlsx", firstrow(varlabels) keepcellfmt replace 
 
 
 
+
+
+
+
+restore
 
 /* Save full dataset */ 
 save all_data, replace
