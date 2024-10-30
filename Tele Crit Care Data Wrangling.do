@@ -24,6 +24,16 @@ Active treatments per day.xlsx 3740 patients; 4118 admits
 (Active treatments per admit and active treatments per stay number not used because they contain only redundant information)
 
 
+*** AMONG THE SUBSET OF PATIENTS WHO TRANSFERRED ****
+-- there are 5 raters. together, each patient was reviewed by 2 of the raters for several process measures relating to the care they received up until the point of transfer. These are reconciled. 
+
+
+Ultimately - the analyatic dataset will contain: 
+
+
+
+
+
 
 [ ] ???
 Reminder: for active treaetments per day, chronic conditions initial group, and cumulatives scores per day - must remove the "blocks" by hospital in the spreadsheet and fill in the ICU-s
@@ -773,9 +783,7 @@ foreach var of varlist `r(varlist)' {
 
 
 
-preserve //temporary 
-
-
+preserve //temporary  - why do I preserve here? 
 
 /*---------------
 
@@ -842,16 +850,108 @@ label variable dur_code_status1 "Duration (days) of First Code Status"
 
 
 //[ ] TODO: make a long and a wide version.
-
-
-
-
-
-
-save complete_sans_ratings, replace
+describe
+save complete_sans_demo, replace
 clear
 
-//Ratings 
+
+//Add final demographics: 
+
+import excel using "Raw Data/TCC Demographics File.xlsx", sheet("Sheet2") firstrow case(lower) clear
+describe
+duplicates list hospitalaccountnumber //should be none
+label variable age_in_years "Age"
+rename age_in_years age
+tab age, plot 
+label variable bmi "BMI (kg/m2)"
+tab bmi, plot
+
+//Convert strings to categorical
+
+encode sex_dsp, gen(sex_male)
+label variable sex_male "Sex"
+drop sex_dsp
+tab sex_male
+
+encode disch_disposition_dsp, gen(discharge_location)
+label variable discharge_location "Discharge Location"
+drop disch_disposition_dsp
+tab discharge_location
+
+encode race_dsp, gen(race)
+label variable race "Race"
+drop race_dsp
+tab race
+
+encode ethnic_grp_dsp, gen(ethnicity)
+label variable ethnicity "Ethnicity"
+drop ethnic_grp_dsp
+tab ethnicity	
+
+gen died = 1
+replace died = 0 if missing(death_dts)
+label variable died "Died"
+
+rename death_dts death_date
+label variable death_date "Date of Death"
+tab death_date //date format; only for patients who died during followup
+
+//there are duplicates in the complete_sans_demo, but not in the demographics. Apply the demographic record to each occurence 
+merge 1:m hospitalaccountnumber using complete_sans_demo, update replace generate(_merge_new_demographics)  
+
+
+
+/* Save full dataset (does not include raters for those who transferred. (in hindsight - why did we do this in only 1 of the groups?)) */ 
+save all_data, replace
+export excel using "all data.xlsx", firstrow(varlabels) keepcellfmt replace 
+
+
+
+/* Save just transfers dataset */ 
+drop if pre_or_post_transfer == 0 
+drop icu_admit_name _merge* hosp_admit_name
+order mrn patientname pre_transfer post_transfer hospital_billing
+save just_transfers, replace
+export excel using "just transfers.xlsx", firstrow(varlabels) keepcellfmt replace 
+
+//TODO: this will get merged with the rater document. 
+
+
+
+
+
+//Maybe approach =  1 dataset for just transfers (and merge with raters)
+// [ ] plan = just transfers -> merge with raters -> comparison groups
+
+
+
+
+//then a separate document where I evaluate just the intubated comparison group. 
+//Intubated but not transferred [by whether they are in a referral hospital or not]
+
+
+
+
+
+
+//Outcome = 24-h, 48-h, 72-h illness severity from intubation. 
+
+
+
+
+
+//TODO: identify intubated at mothership and intubated at peripheral center as comparator groups (Spoke) (Hub)
+//Need to find way to identify patients who are intubated. - then split by transfer vs not?
+
+
+
+
+
+/* -------------
+
+Ratings 
+
+-------------*/ 
 
 /* REVIEWER 1 */
 import excel using "Raw Data\Reviewer 1 - RB_completed.xlsx", sheet("Sheet1") firstrow case(lower) clear
@@ -1180,9 +1280,24 @@ format fin %15.0f
 
 keep fin first_admit second_admit first_soc second_soc first_dex second_dex first_remd second_remd first_tocibaritofa second_tocibaritofa first_abx second_abx first_hcq second_hcq first_transfer_reason second_transfer_reason first_tr_nonresp second_tr_nonresp first_tr_comorb second_tr_comorb first_refuses second_refuses first_refuses_rea second_refuses_rea first_tr_support second_tr_support first_proc second_proc first_proc_time second_proc_time first_proc_comp second_proc_comp first_intubation second_intubation first_tr_comp second_tr_comp first_arr_inter second_arr_inter first_iver second_iver first_refuses_tr second_refuses_tr first_central_line second_central_line first_cardiac_arr second_cardiac_arr first_rec_abx second_rec_abx first_rec_tte second_rec_tte first_rec_ct second_rec_ct first_rec_bronch second_rec_bronch first_rec_free second_rec_free reviewer_one reviewer_two
 
-
 /* Calculate Agreement Statistics */ 
 label define bin_label 0 "No" 1 "Yes"
+
+//Transfer reason
+encode first_transfer_reason, gen(first_transfer_reason_temp)
+drop first_transfer_reason
+rename first_transfer_reason_temp first_transfer_reason
+label variable first_transfer_reason "Transfer Reason, Rater 1"
+
+encode second_transfer_reason, gen(second_transfer_reason_temp)
+drop second_transfer_reason
+rename second_transfer_reason_temp second_transfer_reason
+label variable second_transfer_reason "Transfer Reason, Rater 2"
+
+//Label if reason != intubation (by either rater)
+gen both_transfer_reason_intub = 0
+replace both_transfer_reason_intub = 1 if first_transfer_reason == 3 & second_transfer_reason == 3
+tab both_transfer_reason_intub
 
 //Std of Care
 encode first_soc, gen(first_soc_temp)
@@ -1197,10 +1312,7 @@ recode second_soc_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "N
 drop second_soc
 rename second_soc_temp second_soc
 label values second_soc bin_label
-label variable first_soc "Std of Care, Rater 2"
-
-tab first_soc second_soc
-kap first_soc second_soc
+label variable second_soc "Std of Care, Rater 2"
 
 //Dexamethasone
 encode first_dex, gen(first_dex_temp)
@@ -1217,9 +1329,6 @@ rename second_dex_temp second_dex
 label values second_dex bin_label
 label variable second_dex "Dexamethasone, Rater 2"
 
-tab first_dex second_dex
-kap first_dex second_dex
-
 //Remdesevir
 encode first_remd, gen(first_remd_temp)
 recode first_remd_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
@@ -1234,9 +1343,6 @@ drop second_remd
 rename second_remd_temp second_remd
 label values second_remd bin_label
 label variable second_remd "Remdesevir, Rater 2"
-
-tab first_remd second_remd
-kap first_remd second_remd
 
 // Toci, Bari, Tofa
 encode first_tocibaritofa, gen(first_tocibaritofa_temp)
@@ -1253,9 +1359,6 @@ rename second_tocibaritofa_temp second_tocibaritofa
 label values second_tocibaritofa bin_label
 label variable second_tocibaritofa "Toci/Bari/Tofa, Rater 2"
 
-tab first_tocibaritofa second_tocibaritofa
-kap first_tocibaritofa second_tocibaritofa
-
 // Antibiotics
 encode first_abx, gen(first_abx_temp)
 recode first_abx_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
@@ -1270,9 +1373,6 @@ drop second_abx
 rename second_abx_temp second_abx
 label values second_abx bin_label
 label variable second_abx "Antibiotics, Rater 2"
-
-tab first_abx second_abx
-kap first_abx second_abx
 
 // HCQ
 encode first_hcq, gen(first_hcq_temp)
@@ -1289,9 +1389,6 @@ rename second_hcq_temp second_hcq
 label values second_hcq bin_label
 label variable second_hcq "HCQ, Rater 2"
 
-tab first_hcq second_hcq
-kap first_hcq second_hcq
-
 // Ivermectin
 encode first_iver, gen(first_iver_temp)
 recode first_iver_temp (1 = 0) (2 = 1) // Recode the numeric variable so that "No" becomes 0 and "Yes" becomes 1 - alphabetical
@@ -1307,23 +1404,6 @@ rename second_iver_temp second_iver
 label values second_iver bin_label
 label variable second_iver "HCQ, Rater 2"
 
-tab first_iver second_hcq
-kap first_hcq second_hcq
-
-//Transfer reason
-encode first_transfer_reason, gen(first_transfer_reason_temp)
-drop first_transfer_reason
-rename first_transfer_reason_temp first_transfer_reason
-label variable first_transfer_reason "Transfer Reason, Rater 1"
-
-encode second_transfer_reason, gen(second_transfer_reason_temp)
-drop second_transfer_reason
-rename second_transfer_reason_temp second_transfer_reason
-label variable second_transfer_reason "Transfer Reason, Rater 2"
-
-tab first_transfer_reason second_transfer_reason
-kap first_transfer_reason second_transfer_reason
-
 //Non-resp reason
 encode first_tr_nonresp, gen(first_tr_nonresp_temp)
 drop first_tr_nonresp
@@ -1335,9 +1415,6 @@ drop second_tr_nonresp
 rename second_tr_nonresp_temp second_tr_nonresp
 label variable second_tr_nonresp "Transfer Reason - Non-resp, Rater 2"
 
-tab first_tr_nonresp second_tr_nonresp
-kap first_tr_nonresp second_tr_nonresp
-
 //Comorbid Transfer reson
 encode first_tr_comorb, gen(first_tr_comorb_temp)
 drop first_tr_comorb
@@ -1348,9 +1425,6 @@ encode second_tr_comorb, gen(second_tr_comorb_temp)
 drop second_tr_comorb
 rename second_tr_comorb_temp second_tr_comorb
 label variable second_tr_comorb "Transfer Reason - Comorbidity, Rater 2"
-
-tab first_tr_comorb second_tr_comorb
-kap first_tr_comorb second_tr_comorb
 
 // Refuses Transfer
 encode first_refuses, gen(first_refuses_temp)
@@ -1367,9 +1441,6 @@ rename second_refuses_temp second_refuses
 label values second_refuses bin_label
 label variable second_refuses "Refuses Transfer, Rater 2"
 
-tab first_refuses second_refuses
-kap first_refuses second_refuses
-
 // Refuses Transfer
 encode first_refuses_rea, gen(first_refuses_rea_temp)
 drop first_refuses_rea
@@ -1382,9 +1453,6 @@ drop second_refuses_rea
 rename second_refuses_rea_temp second_refuses_rea
 label variable second_refuses_rea "Refuses Transfer, Rater 2"
 
-tab first_refuses_rea second_refuses_rea
-kap first_refuses_rea second_refuses_rea
-
 //Transfer support
 encode first_tr_support, gen(first_tr_support_temp)
 drop first_tr_support
@@ -1395,9 +1463,6 @@ encode second_tr_support, gen(second_tr_support_temp)
 drop second_tr_support
 rename second_tr_support_temp second_tr_support
 label variable second_tr_support "Transfer Support, Rater 2"
-
-tab first_tr_support second_tr_support
-kap first_tr_support second_tr_support
 
 //Procedures
 encode first_proc, gen(first_proc_temp)
@@ -1410,9 +1475,6 @@ drop second_proc
 rename second_proc_temp second_proc
 label variable second_proc "Procedure, Rater 2"
 
-tab first_proc second_proc
-kap first_proc second_proc
-
 //Procedure Complications
 encode first_proc_comp, gen(first_proc_comp_temp)
 drop first_proc_comp
@@ -1423,10 +1485,6 @@ encode second_proc_comp, gen(second_proc_comp_temp)
 drop second_proc_comp
 rename second_proc_comp_temp second_proc_comp
 label variable second_proc_comp "Procedure Complications, Rater 2"
-
-tab first_proc_comp second_proc_comp
-kap first_proc_comp second_proc_comp
-
 
 //Intubation
 encode first_intubation, gen(first_intubation_temp)
@@ -1439,9 +1497,6 @@ drop second_intubation
 rename second_intubation_temp second_intubation
 label variable second_intubation "Intubation, Rater 2"
 
-tab first_intubation second_intubation
-kap first_intubation second_intubation
-
 //Transfer Complication
 encode first_tr_comp, gen(first_tr_comp_temp)
 drop first_tr_comp
@@ -1452,9 +1507,6 @@ encode second_tr_comp, gen(second_tr_comp_temp)
 drop second_tr_comp
 rename second_tr_comp_temp second_tr_comp
 label variable second_tr_comp "Transfer Complication, Rater 2"
-
-tab first_tr_comp second_tr_comp
-kap first_tr_comp second_tr_comp
 
 //Arr Inter
 encode first_arr_inter, gen(first_arr_inter_temp)
@@ -1467,12 +1519,84 @@ drop second_arr_inter
 rename second_arr_inter second_arr_inter
 label variable second_arr_inter "Arr Inter, Rater 2"
 
-tab first_arr_inter second_arr_inter
-kap first_arr_inter second_arr_inter
+//Refuses Transfer
+encode first_refuses_tr, gen(first_refuses_tr_temp)
+drop first_refuses_tr
+rename first_refuses_tr_temp first_refuses_tr
+label variable first_refuses_tr "Refuses Transfer, Rater 1"
 
+encode second_refuses_tr, gen(second_refuses_tr_temp)
+drop second_refuses_tr
+rename second_refuses_tr_temp second_refuses_tr
+label variable second_refuses_tr "Refuses Transfer, Rater 2"
 
-//
-/* Save full dataset */ 
+//Central Line
+encode first_central_line, gen(first_central_line_temp)
+drop first_central_line
+rename first_central_line_temp first_central_line
+label variable first_central_line "Central Line, Rater 1"
+
+encode second_central_line, gen(second_central_line_temp)
+drop second_central_line
+rename second_central_line_temp second_central_line
+label variable second_refuses_tr "Refuses Transfer, Rater 2"
+
+//Cardiac Arrest
+encode first_cardiac_arr, gen(first_cardiac_arr_temp)
+drop first_cardiac_arr
+rename first_cardiac_arr_temp first_cardiac_arr
+label variable first_cardiac_arr "Cardiac Arrest, Rater 1"
+
+encode second_cardiac_arr, gen(second_cardiac_arr_temp)
+drop second_cardiac_arr
+rename second_cardiac_arr_temp second_cardiac_arr
+label variable second_cardiac_arr "Cardiac Arrest, Rater 2"
+
+//Tele Rec Abx
+encode first_rec_abx, gen(first_rec_abx_temp)
+drop first_rec_abx
+rename first_rec_abx_temp first_rec_abx
+label variable first_rec_abx "Tele Rec. Antibiotics, Rater 1"
+
+encode second_rec_abx, gen(second_rec_abx_temp)
+drop second_rec_abx
+rename second_rec_abx_temp second_rec_abx
+label variable second_rec_abx "Tele Rec. Antibitiocs, Rater 2"
+
+//Tele Rec TTE
+encode first_rec_tte, gen(first_rec_tte_temp)
+drop first_rec_tte
+rename first_rec_tte_temp first_rec_tte
+label variable first_rec_tte "Tele Rec. TTE, Rater 1"
+
+encode second_rec_tte, gen(second_rec_tte_temp)
+drop second_rec_tte
+rename second_rec_tte_temp second_rec_tte
+label variable second_rec_tte "Tele Rec. TTE, Rater 2"
+
+//Tele Rec CT
+encode first_rec_ct, gen(first_rec_ct_temp)
+drop first_rec_ct
+rename first_rec_ct_temp first_rec_ct
+label variable first_rec_ct "Tele Rec. CT, Rater 1"
+
+encode second_rec_ct, gen(second_rec_ct_temp)
+drop second_rec_ct
+rename second_rec_ct_temp second_rec_ct
+label variable second_rec_ct "Tele Rec. CT, Rater 2"
+
+//Tele Rec Bronch
+encode first_rec_bronch, gen(first_rec_bronch_temp)
+drop first_rec_bronch
+rename first_rec_bronch_temp first_rec_bronch
+label variable first_rec_bronch "Tele Rec. Bronch, Rater 1"
+
+encode second_rec_bronch, gen(second_rec_bronch_temp)
+drop second_rec_bronch
+rename second_rec_bronch_temp second_rec_bronch
+label variable second_rec_bronch "Tele Rec. Bronch, Rater 2"
+
+/* Save rater dataset */ 
 save rater_data, replace
 export excel using "rater data.xlsx", firstrow(varlabels) keepcellfmt replace 
 
@@ -1480,33 +1604,190 @@ export excel using "rater data.xlsx", firstrow(varlabels) keepcellfmt replace
 
 
 
+//TOdO: Need to merge all_data_sans raters with raters data. 
+// Note: that all data from the reviewers only pertains to transferred patients.  - may need to add a flag
 
 
-restore
+/* Calculate Agreement Statistics ( [ ] move this to calculations file ) */
 
-/* Save full dataset */ 
-save all_data, replace
-export excel using "all data.xlsx", firstrow(varlabels) keepcellfmt replace 
+//Reason for transfer
+tab first_transfer_reason second_transfer_reason
+kap first_transfer_reason second_transfer_reason
 
-/* Save just transfers dataset */ 
-drop if pre_or_post_transfer == 0 
-drop icu_admit_name _merge* hosp_admit_name
-order mrn patientname pre_transfer post_transfer hospital_billing
-save just_transfers, replace
-export excel using "just transfers.xlsx", firstrow(varlabels) keepcellfmt replace 
+//Std of Care 
+tab first_soc second_soc
+kap first_soc second_soc
+tab first_soc second_soc if both_transfer_reason_intub == 1
+kap first_soc second_soc if both_transfer_reason_intub == 1
 
-
-
-
-
-
-
+//Dexamethasone
+tab first_dex second_dex
+kap first_dex second_dex
+tab first_dex second_dex if both_transfer_reason_intub == 1
+kap first_dex second_dex if both_transfer_reason_intub == 1
 
 
+//Remdesevir
+tab first_remd second_remd
+kap first_remd second_remd
+tab first_remd second_remd if both_transfer_reason_intub == 1
+kap first_remd second_remd if both_transfer_reason_intub == 1
+
+//ABX
+tab first_abx second_abx
+kap first_abx second_abx
+tab first_abx second_abx if both_transfer_reason_intub == 1
+kap first_abx second_abx if both_transfer_reason_intub == 1
+
+//Toci, Bari, Tofa
+tab first_tocibaritofa second_tocibaritofa
+kap first_tocibaritofa second_tocibaritofa
+tab first_tocibaritofa second_tocibaritofa if both_transfer_reason_intub == 1
+kap first_tocibaritofa second_tocibaritofa if both_transfer_reason_intub == 1
+
+//HCQ
+tab first_hcq second_hcq
+kap first_hcq second_hcq
+tab first_hcq second_hcq if both_transfer_reason_intub == 1
+kap first_hcq second_hcq if both_transfer_reason_intub == 1
+
+//Ivermectin
+tab first_iver second_hcq
+kap first_hcq second_hcq
+tab first_iver second_hcq if both_transfer_reason_intub == 1
+kap first_hcq second_hcq if both_transfer_reason_intub == 1
+
+//Transfer Reason: nonresp
+tab first_tr_nonresp second_tr_nonresp
+kap first_tr_nonresp second_tr_nonresp
+tab first_tr_nonresp second_tr_nonresp if both_transfer_reason_intub == 1
+kap first_tr_nonresp second_tr_nonresp if both_transfer_reason_intub == 1
+
+//Transfer Reason: Comorbidity
+tab first_tr_comorb second_tr_comorb
+kap first_tr_comorb second_tr_comorb
+tab first_tr_comorb second_tr_comorb if both_transfer_reason_intub == 1
+//kap first_tr_comorb second_tr_comorb if both_transfer_reason_intub == 1 //none
+
+//Refuses Transfer
+tab first_refuses second_refuses
+kap first_refuses second_refuses
+tab first_refuses second_refuses if both_transfer_reason_intub == 1
+kap first_refuses second_refuses if both_transfer_reason_intub == 1
+
+//Refuses Transfer, Reason 
+tab first_refuses_rea second_refuses_rea
+kap first_refuses_rea second_refuses_rea
+tab first_refuses_rea second_refuses_rea if both_transfer_reason_intub == 1
+kap first_refuses_rea second_refuses_rea if both_transfer_reason_intub == 1
+
+// Transfer Support 
+tab first_tr_support second_tr_support
+kap first_tr_support second_tr_support
+tab first_tr_support second_tr_support if both_transfer_reason_intub == 1
+kap first_tr_support second_tr_support if both_transfer_reason_intub == 1
+
+// Procedures
+tab first_proc second_proc
+kap first_proc second_proc
+tab first_proc second_proc if both_transfer_reason_intub == 1
+kap first_proc second_proc if both_transfer_reason_intub == 1
+
+//Procedure Complication
+tab first_proc_comp second_proc_comp
+kap first_proc_comp second_proc_comp
+tab first_proc_comp second_proc_comp if both_transfer_reason_intub == 1
+kap first_proc_comp second_proc_comp if both_transfer_reason_intub == 1
+
+//Intubation 
+tab first_intubation second_intubation
+kap first_intubation second_intubation
+tab first_intubation second_intubation if both_transfer_reason_intub == 1
+kap first_intubation second_intubation if both_transfer_reason_intub == 1
+
+//Transfer Complications
+tab first_tr_comp second_tr_comp
+kap first_tr_comp second_tr_comp
+tab first_tr_comp second_tr_comp if both_transfer_reason_intub == 1
+kap first_tr_comp second_tr_comp if both_transfer_reason_intub == 1
+
+//Arr Inter
+tab first_arr_inter second_arr_inter
+kap first_arr_inter second_arr_inter
+tab first_arr_inter second_arr_inter if both_transfer_reason_intub == 1
+kap first_arr_inter second_arr_inter if both_transfer_reason_intub == 1
+
+//Refuses Transfer
+tab first_refuses_tr second_refuses_tr
+kap first_refuses_tr second_refuses_tr
+tab first_refuses_tr second_refuses_tr if both_transfer_reason_intub == 1
+kap first_refuses_tr second_refuses_tr if both_transfer_reason_intub == 1
+
+//Central Line 
+tab first_central_line second_central_line //No central line procedures? 
+//kap first_central_line second_central_line
+tab first_central_line second_central_line if both_transfer_reason_intub == 1 //No central line procedures? 
+//kap first_central_line second_central_line
+
+//Cardiac Arrest
+tab first_cardiac_arr second_cardiac_arr
+kap first_cardiac_arr second_cardiac_arr
+tab first_cardiac_arr second_cardiac_arr if both_transfer_reason_intub == 1
+kap first_cardiac_arr second_cardiac_arr if both_transfer_reason_intub == 1
+
+//Tele Rec Abx
+tab first_rec_abx second_rec_abx
+kap first_rec_abx second_rec_abx
+tab first_rec_abx second_rec_abx if both_transfer_reason_intub == 1
+kap first_rec_abx second_rec_abx if both_transfer_reason_intub == 1
+
+//Tele Rec TTE
+tab first_rec_tte second_rec_tte
+kap first_rec_tte second_rec_tte
+tab first_rec_tte second_rec_tte if both_transfer_reason_intub == 1
+kap first_rec_tte second_rec_tte if both_transfer_reason_intub == 1
+
+//Tele Rec CT 
+tab first_rec_ct second_rec_ct
+kap first_rec_ct second_rec_ct
+tab first_rec_ct second_rec_ct if both_transfer_reason_intub == 1
+kap first_rec_ct second_rec_ct if both_transfer_reason_intub == 1
+
+//Tele Rec Bronch
+tab first_rec_bronch second_rec_bronch
+kap first_rec_bronch second_rec_bronch
+tab first_rec_bronch second_rec_bronch if both_transfer_reason_intub == 1
+kap first_rec_bronch second_rec_bronch if both_transfer_reason_intub == 1
 
 
 
 
+//Other data elements: 
+
+
+
+
+/*Analysis:
+Comparison groups = 
+Intubated, but non-transferred patients. 
+
+
+I attached my last PGR with a breakdown of what we were thinking to help jog your memory since it's been a few months. Just jump to slide 25. I think most of the stuff I looked at is self-explanatory in the slides. I did this all from pivot tables in excel, so if you don't mind crunching everything with stata I'm sure it'll be more reliable. 
+
+The one thing I couldn't work in pivot tables was the transfer time. The off the floor time is buried in Hospital discharge date/time and arrival time is ICU admission date/time. 
+
+Think it would be interesting to look at prolonged transfer time and arrival SOI scores. T
+
+
+he only interesting trend I found were the APACHE/APS scores. The intubated & transferred patients had a higher APACHE/APS with a declining trend for the 72 hours following transfer while the intubated/no transfer had an increasing APACHE/APS trend, which is supportive of what we were thinking regarding transfer as a potential harmful intervention immediately after transfer. There's some COVID data that seems to support this, as well. 
+
+
+I also attached the missing demographic data that needs to be added to the main dataset.
+
+
+//TCC Demographics File. xlsx
+//[ ] TODO: to what extent is this new, or just better data? 
+ */ 
 
 
 
