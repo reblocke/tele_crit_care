@@ -83,15 +83,11 @@ For the wide verisons, the # at the end of the variable is the ICU-day that it r
 -- for code status, the # refers to how many times they've changed their code status
 
 
+
 TODO: 
--- still need to assess some of the merge flags to make sure none of the data is bad, lots of conflicts on third move
+[ ] -- still need to assess some of the merge flags to make sure none of the data is bad, lots of conflicts on third move
 -- still need to reconcile the old and new data variables for merging. - mostly done, need to address the problems with the  new procedures. 
 -- still need to make a long version of the data-set 
---- need to change the code status timing to refflect days rather than time of change... --- may be more challenging. 
-
-//TODO: do we have *LAST* days of initial hospitalization data? 
-
-[ ] readmission flag? 
 
 
 FOR LATER - From Jeff
@@ -100,8 +96,6 @@ FOR LATER - From Jeff
 //Data-oddities: 
 - I'm not sure why so many of the reintubations occur before ICU admit (e.g. Day "0") - seems odd for a REintubation. 
 e.g.****L - reintubation noted ICU day 2, but 
-
-//TODO: why are there fewer pre-transfer than post-transfer 
 
 */ 
 
@@ -746,6 +740,7 @@ di "Number of unique ICU Admits: " `: word count `icuAdmitNameLevels''
 gen hosp_admit_name = string(hospitaladmissiondatetime, "%td") + "-" + string(hospitalaccountnumber, "%12.0f")
 label variable hosp_admit_name "Hosp-Identifier: Admit date - FIN"
 merge m:1 hosp_admit_name using code_status_data, update generate(_merge_code)  
+drop if missing(mrn) //match failures
 
 //Highlight whether a given readmission is the first in the data-set or no. 
 egen time_thru_icu_rank = rank(icudischargedatetime), by(mrn) track //this creates an enc_rank if it's the first encounter for the patients
@@ -782,9 +777,6 @@ foreach var of varlist `r(varlist)' {
 }
 
 
-
-preserve //temporary  - why do I preserve here? 
-
 /*---------------
 
 Generate only the transfers 
@@ -798,23 +790,37 @@ forval i = 1/`=_N' {
     * Check the next row for the same patient
     if mrn[`i'] == mrn[`i' + 1] {
         * Check if 'hosp_disch_loc' is "Other ICU = 3" and the next 'icu_admission' is within 48 hours
-        if hosp_disch_loc[`i'] == 3 & icuadmissiondatetime[`i' + 1] - icudischargedatetime[`i'] <= 48/24 {
+        if post_icu_dest[`i'] == 3 & icuadmissiondatetime[`i' + 1] - icudischargedatetime[`i'] <= 48/24 {
             replace pre_transfer = 1 in `i'
         }
     }
 }
+//instead of hosp_disch_loc, should we be matching on post_icu_dest? or, require that hospital billing =/= pre and post
+//changed from hosp_disch_loc[`i'] == 3 & icuadmissiondatetime[`i' + 1] - icudischargedatetime[`i'] <= 48/24 to avoid pre-transfer bounces
+
+
 forval i = 1/`=_N' {
     * Check the previous row for the same patient
     if mrn[`i'] == mrn[`i' - 1] {
         * if the last row was the correct dispo and within 48. If so flag
-        if hosp_disch_loc[`i' - 1] == 3 & icuadmissiondatetime[`i' ] - icudischargedatetime[`i' - 1] <= 48/24 {
+        if post_icu_dest[`i' - 1] == 3 & icuadmissiondatetime[`i' ] - icudischargedatetime[`i' - 1] <= 48/24 {
             replace post_transfer = 1 in `i'
         }
     }
 }
+//if hosp_disch_loc[`i' - 1] == 3 & icuadmissiondatetime[`i' ] - icudischargedatetime[`i' - 1] <= 48/24
+
+format mrn %15.0f
 
 gen pre_or_post_transfer = 1
 replace pre_or_post_transfer = 0 if pre_transfer == 0 & post_transfer == 0
+
+by mrn: egen ever_transfer = max(pre_or_post_transfer) //Create "ever_transfer" as a maximum of "pre_post_transfer" within each "mrn" group
+
+sort patientname mrn icuadmissiondatetime 
+
+/* For Troubleshooting Pre- and post- labeling. */
+list patientname mrn hosp_disch_loc icuadmissiondatetime icudischargedatetime hospital_billing post_icu_dest adm_icu pre_transfer post_transfer if mrn == 404090462 //if pre_transfer == 1 & post_transfer == 1
 
 //Tranfer variable labels 
 label variable icuadmissiondate_only "Date of ICU Admission (no time)"
@@ -822,6 +828,7 @@ label variable icu_los "ICU Length of Stay"
 label variable pre_transfer "Hospitalization is Pre-Transfer?"
 label variable post_transfer "hospitalizatino is Post-Transfer?"
 label variable pre_or_post_transfer "Hospitalization either Pre or Post Transfer?"
+label variable ever_transfer "Any ICU encounters from this MRN with a transfer?"
 
 
 /* Label by Tele-critical care status: 
@@ -848,14 +855,12 @@ label values tele_status tele_status_lab
 
 label variable dur_code_status1 "Duration (days) of First Code Status"
 
-
-//[ ] TODO: make a long and a wide version.
+//[/] TODO: make a long and a wide version.
 describe
 save complete_sans_demo, replace
 clear
 
-
-//Add final demographics: 
+//Add final demographics table: 
 
 import excel using "Raw Data/TCC Demographics File.xlsx", sheet("Sheet2") firstrow case(lower) clear
 describe
@@ -899,53 +904,29 @@ tab death_date //date format; only for patients who died during followup
 //there are duplicates in the complete_sans_demo, but not in the demographics. Apply the demographic record to each occurence 
 merge 1:m hospitalaccountnumber using complete_sans_demo, update replace generate(_merge_new_demographics)  
 
-
-
 /* Save full dataset (does not include raters for those who transferred. (in hindsight - why did we do this in only 1 of the groups?)) */ 
 save all_data, replace
 export excel using "all data.xlsx", firstrow(varlabels) keepcellfmt replace 
 
-
-
 /* Save just transfers dataset */ 
+preserve
 drop if pre_or_post_transfer == 0 
-drop icu_admit_name _merge* hosp_admit_name
+//drop _merge*
+//drop icu_admit_name  hosp_admit_name 
 order mrn patientname pre_transfer post_transfer hospital_billing
 save just_transfers, replace
 export excel using "just transfers.xlsx", firstrow(varlabels) keepcellfmt replace 
+restore
 
-//TODO: this will get merged with the rater document. 
-
-
-
-
-
-//Maybe approach =  1 dataset for just transfers (and merge with raters)
-// [ ] plan = just transfers -> merge with raters -> comparison groups
-
-
-
-
-//then a separate document where I evaluate just the intubated comparison group. 
-//Intubated but not transferred [by whether they are in a referral hospital or not]
-
-
-
-
-
-
-//Outcome = 24-h, 48-h, 72-h illness severity from intubation. 
-
-
-
-
-
-//TODO: identify intubated at mothership and intubated at peripheral center as comparator groups (Spoke) (Hub)
-//Need to find way to identify patients who are intubated. - then split by transfer vs not?
-
-
-
-
+/* Save just non-transfers dataset */ 
+preserve
+drop if pre_or_post_transfer == 1 
+//drop _merge*
+//drop icu_admit_name hosp_admit_name
+order mrn patientname pre_transfer post_transfer hospital_billing
+save just_non_transfers, replace
+export excel using "just non transfers.xlsx", firstrow(varlabels) keepcellfmt replace 
+restore
 
 /* -------------
 
@@ -1602,10 +1583,208 @@ export excel using "rater data.xlsx", firstrow(varlabels) keepcellfmt replace
 
 
 
+//Combine transfer hospitalizations.? 
+
+use just_transfers, clear
+
+//Gonzales, Nick had two transfers... only keep the first one
+sort mrn pre_transfer icuadmissiondatetime 
+by mrn pre_transfer: gen first_admission = (_n == 1) //Identify the first observation within each MRN-pre_transfer combination
+keep if first_admission //Filter to keep only the first observation of each combination
+drop first_admission  
+
+/* 
+SALAZAR,MARIA L - 547628013  -- transfer AF -> UV -> IMED all on 1 day.  *** just use first? 
+BORG,KRIS S - 403384395 -- transfer AF -> UV -> IMED  *** not all in 1 day *** just use first? 
+*/ 
+drop if pre_transfer == 1 & post_transfer == 1  //dual transfers
+
+duplicates report hosp_admit_name //unique 
+duplicates report icu_admit_name //unique
+missings report enc_id  //88 missing enc_id
+duplicates report mrn //2 of each, 335 transfers. 
+
+tab icu_los if pre_transfer == 1, plot
+sum icu_los, detail
+gen icu_los_int = ceil(icu_los) // the idea will be to shift all of these up in the post
+
+
+gen apache_3_score_day_last_pre = .
+forvalues i = 1/`=_N' {
+	if pre_transfer[`i'] == 1 {
+		local day_var = "apache_3_score_day_" + string(icu_los_int[`i']) //Retrieve the column name for the last day based on icu_los_int
+        * Assign the value of the dynamically chosen column to aps_day_last_pre Use `in` to ensure the assignment is per observation
+		replace apache_3_score_day_last_pre = `day_var'[`i'] in `i'
+	}
+}
+
+list mrn pre_transfer icu_los_int apache_3_score_day_last_pre apache_3_score_day* in 51/60
+
+
+gen apache_3_score_day_last_pre
+gen aps_day_last_pre
+gen apache_4_hosp_mort_day_last_pre
+gen apache_4_cum_mort_day_last_pre
+gen crrt_last_pre
+gen cardiovert_last_pre
+gen cont_art_drug_inf_last_pre
+gen cont_iv_sed_last_pre
+gen cont_nmb_last_pre
+gen cont_anti_arrh_last_pre
+gen ecmo_last_pre
+gen emerg_op_in_icu_last_pre
+gen emerg_op_out_icu_last_pre
+gen endoscope_last_pre
+gen hfnc_last_pre
+gen icu_intub_last_pre
+gen ippv_last_pre
+gen irrt_last_pre
+gen iv_fluid_rep_last_pre
+gen mtp_last_pre
+gen mult_pressors_last_pre
+gen nippv_last_pre
+gen one_pressor_last_pre
+gen pa_cath_last_pre
+gen post_arrest_last_pre
+gen prone_last_pre
+gen reintub_last_pre
+gen ttm_last_pre
+
+gen apache_3_score_day_first_post
+gen aps_day_first_post
+gen apache_4_hosp_mort_day_first_post
+gen apache_4_cum_mort_day_first_post
+gen crrt_first_post
+gen cardiovert_first_post
+gen cont_art_drug_inf_first_post
+gen cont_iv_sed_first_post`'
+gen cont_nmb_first_post
+gen cont_anti_arrh_first_post
+gen ecmo_first_post
+gen emerg_op_in_icu_first_post
+gen emerg_op_out_icu_first_post
+gen endoscope_first_post
+gen hfnc_first_post
+gen icu_intub_first_post
+gen ippv_first_post
+gen irrt_first_post
+gen iv_fluid_rep_first_post
+gen mtp_first_post
+gen mult_pressors_first_post
+gen nippv_first_post
+gen one_pressor_first_post
+gen pa_cath_first_post
+gen post_arrest_first_post
+gen prone_first_post
+gen reintub_first_post
+gen ttm_first_post
+
+
+
+
+/* list of vars that are day specific 
+
+apache_3_score_day_
+aps_day_
+apache_4_hosp_mort_day_
+apache_4_cum_mort_day_
+crrt_ 
+cardiovert_
+cont_art_drug_inf_
+cont_iv_sed 
+cont_nmb_
+cont_anti_arrh_ 
+ecmo_
+emerg_op_in_icu_
+emerg_op_out_icu_
+endoscope_
+hfnc_
+icu_intub_
+ippv_
+irrt_
+iv_fluid_rep_
+mtp_
+mult_pressors_
+nippv_ 
+one_pressor
+pa_cath_
+post_arrest_
+prone_
+reintub_
+ttm_
+
+code_status ones would just need additions. 
+
+
+//sketch
+--> create last-pre, first post- 
+-> shift days on the post
+--> add pre and post prefixes
+--> merge by mrn
+--> create new vars that are maximum of pre or post 
+
+
+*/ 
+
+
+//create a var for the hosp day of transfer
+//last pretransfer_ 
+//first_posttransfer_
+
+
+// we'll need to calculate the day of transfer, and calculate day_before, day_after, etc. 
+
+//day of intubation? 
+
+
+
+
+
+//--- need to change the code status timing to refflect days rather than time of change... --- may be more challenging. 
+//TODO: do we have *LAST* days of initial hospitalization data? 
+//TODO: why are there fewer pre-transfer than post-transfer 
+
+
+
+//Need to merge rater data and transfer data 
+// Rater data = has unique FIN for each
+
+
+
+
+
+
+//Merge to NOT transfer dataset 
+//Need a not transfers dataset? 
+//yes, and will need to remove duplicates and bounces - including pre_bounces? 
+
+
+
 
 
 //TOdO: Need to merge all_data_sans raters with raters data. 
 // Note: that all data from the reviewers only pertains to transferred patients.  - may need to add a flag
+
+
+
+
+// [ ] make a readmission flag? 
+
+use just_non_transfers, clear
+
+duplicates report enc_id //~2300 missing
+missings report enc_id //2314 missing... quite a lot?  even a few in the transfers. 
+duplicates report mrn
+missings report mrn //have enc_id, generally?  hospital_billing spreadsheet, have hosp_admit_name
+duplicates report icu_admit_name  //this is unique and no missing *** merge etc. on this - however, issue will be why duplicates. 
+missings report icu_admit_name
+duplicates report patientname
+
+
+
+use all_data, clear
+
+
 
 
 /* Calculate Agreement Statistics ( [ ] move this to calculations file ) */
@@ -1776,10 +1955,7 @@ I attached my last PGR with a breakdown of what we were thinking to help jog you
 
 The one thing I couldn't work in pivot tables was the transfer time. The off the floor time is buried in Hospital discharge date/time and arrival time is ICU admission date/time. 
 
-Think it would be interesting to look at prolonged transfer time and arrival SOI scores. T
-
-
-he only interesting trend I found were the APACHE/APS scores. The intubated & transferred patients had a higher APACHE/APS with a declining trend for the 72 hours following transfer while the intubated/no transfer had an increasing APACHE/APS trend, which is supportive of what we were thinking regarding transfer as a potential harmful intervention immediately after transfer. There's some COVID data that seems to support this, as well. 
+Think it would be interesting to look at prolonged transfer time and arrival SOI scores. The only interesting trend I found were the APACHE/APS scores. The intubated & transferred patients had a higher APACHE/APS with a declining trend for the 72 hours following transfer while the intubated/no transfer had an increasing APACHE/APS trend, which is supportive of what we were thinking regarding transfer as a potential harmful intervention immediately after transfer. There's some COVID data that seems to support this, as well. 
 
 
 I also attached the missing demographic data that needs to be added to the main dataset.
@@ -1794,6 +1970,80 @@ I also attached the missing demographic data that needs to be added to the main 
 
 
 
+
+
+
+//Maybe approach =  1 dataset for just transfers (and merge with raters)
+// [ ] plan = just transfers -> merge with raters -> comparison groups
+
+//then a separate document where I evaluate just the intubated comparison group. 
+
+//Intubated but not transferred [by whether they are in a referral hospital or not]
+
+
+//Outcome = 24-h, 48-h, 72-h illness severity from intubation. 
+
+
+
+
+
+//TODO: identify intubated at mothership and intubated at peripheral center as comparator groups (Spoke) (Hub)
+//Need to find way to identify patients who are intubated. - then split by transfer vs not?
+
+
+
+
+//Note: time through icu, ever transfer, pre_ and post_transfer should let us restrict to what we want. 
+
+
+
+///Suspicious ones
+
+/*
+patientname
+WRAICH,SUKHJIT
+RICKORDS,KAREN
+JENKINS,JOSHUA C -- internal bounce
+CAMPBELL,KARRI J
+HOLMES,PATSY H
+SMITH,DEBY L
+NEWTON,JOHN
+MANCINI,DENNIS
+LEISHMAN,SCOTT F
+BEEGLE,PATRICIA L
+GWYNN,THOMAS D
+HUTCHINSON,THOMAS S
+BEEGLE,PATRICIA L
+HALVERSON,JOEL C
+DUNSTER,JESSICA
+FOLTZ,SHIRLY G
+MATAELE,IPU
+ANTHONY,KYLE C
+GRAHAM,MICHELLE P -- bounced in and out of the same icu twice
+ARLT,PHILLIP M
+SCOW,JAMES A -- bounced at AF before ultimately transferring to UVU
+ROMERO,MARIA D
+HOLMES,PATSY H
+SOHN,DAVID W
+*/ 
+
+
+
+/* ?Manual exclusions
+patientname
+
+
+HOLMES,PATSY H - 268538485  -- first was a bounce back to the same ICU, then later a legit transfer. 
+HOLMES,PATSY H - 268538485 
+SCOW,JAMES A - 403321904 -- bounced at AF before ultimately transferring to UVU
+RICKORDS,KAREN - 547755767 -- bounce 
+BEEGLE,PATRICIA L - 403732991 - in and out of PK twice, then ultimately transfer to LD
+BEEGLE,PATRICIA L - 403732991
+ANTHONY,KYLE C - 540141226 - bounced within a day at logan, then later transfer to IMED
+*/ 
+
+// JENKINS,JOSHUA C - in and out of riverton twice in the same day. Need to move this back to non-transfer. 
+// GRAHAM,MICHELLE P - in and out of logan twice  [these ones came up as ***]
 
 
 
