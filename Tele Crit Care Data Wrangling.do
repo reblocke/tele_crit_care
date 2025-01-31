@@ -1804,6 +1804,16 @@ missings table apache_3_score_day aps_day apache_4_hosp_mort_day apache_4_cum_mo
 drop if missing(apache_3_score_day) & missing(aps_day) & missing(apache_4_hosp_mort_day) & missing(apache_4_cum_mort_day)
 missings list apache_3_score_day aps_day apache_4_hosp_mort_day apache_4_cum_mort_day // just apache 4 occ. missing.
 
+/* 
+TODO: merging will occur based on intubation day - make adjustment relative to transfer.
+Make Adjustment re: day of intubation? 
+
+min of ippv variable
+
+//TODO: Day of first intubation?  (for comparison), etc. 
+*/ 
+egen first_day_with_ippv = min(day) if ippv == 1, by(mrn) // minimum day w IPPV flag = day of intubation.
+
 //Create day_indexed_transfer. 0 = last day pre, 1 = first day post 
 // HOSPITAL DAY 0 = LAST PRE, DAY 1 = FIRST POST. MIN = FIRST, MAX = LAST. 
 // Note: later they all need to be positive, thus add 100 below.
@@ -1859,32 +1869,32 @@ label values post_hospital_billing hospital_billing
 
 /*  
 Worth keeping with pre_ and post_ prefixes
-hospital_billing 
-discharge_location  [ ] or maybe get rid of it? 
-hospitalaccountnumber 
-hospitaladmissiondatetime 
-hospitaldischargedatetime 
-icuadmissiondatetime 
-icudischargedatetime
-tele_status [ ] how are these diff, and is it implied? 
-tele_cc_icu [ ] how are these diff, and is it implied? 
-total_icu_days_crrt
-total_icu_days_nmb
-total_icu_days_proning
-total_icu_days_crrt
-total_icu_days_nmb 
-cont_nmb (???) - what is the deal with this one? 
-total_icu_days_proning
-num_code_status 
-time_thru_icu_rank 
-post_icu_dest
-apachereadmit
-apachereadmitwithin24hours
-apache_dx 
-adm_icu 
-hospital_los 
-icu_los 
-icu_los_int 
+[x] hospital_billing 
+[ ] discharge_location  [ ] or maybe get rid of it? 
+[ ] hospitalaccountnumber 
+[ ] hospitaladmissiondatetime 
+[ ] hospitaldischargedatetime 
+[ ] icuadmissiondatetime 
+[ ] icudischargedatetime
+[ ] tele_status [ ] how are these diff, and is it implied? 
+[ ] tele_cc_icu [ ] how are these diff, and is it implied? 
+[ ] total_icu_days_crrt
+[ ] total_icu_days_nmb
+[ ] total_icu_days_proning
+[ ] total_icu_days_crrt
+[ ] total_icu_days_nmb 
+[ ] cont_nmb (???) - what is the deal with this one? 
+[ ] total_icu_days_proning
+[ ] num_code_status 
+[ ] time_thru_icu_rank 
+[ ] post_icu_dest
+[ ] apachereadmit
+[ ] apachereadmitwithin24hours
+[ ] apache_dx 
+[ ] adm_icu 
+[ ] hospital_los 
+[ ] icu_los 
+[ ] icu_los_int 
 
 TODO (what differences? make pre_ and post_ then compare: 
 loc_at_death (not sure why)
@@ -1907,6 +1917,8 @@ hosp_admit_name enc_id
 start_nmb_1 stop_nmb_1 days_cont_nmb_1 start_nmb_2 stop_nmb_2 days_cont_nmb_2 start_nmb_3 stop_nmb_3 days_cont_nmb_3 start_nmb_4 stop_nmb_4 days_cont_nmb_4  
 start_proning_1 stop_proning_1 days_cont_proning_1 start_proning_2 stop_proning_2 days_cont_proning_2 
 
+
+[ ] TODO: - can we just synthesize these into number of reintubations? 
 reintub_rank_1 reintub_rank_2 reintub_rank_3 reintub_rank_4 reintub_rank_5 reintub_rank_6 reintub_rank_7 reintub_rank_8 reintub_rank_9 reintub_rank_10 reintub_rank_11 reintub_rank_12 reintub_rank_13 reintub_rank_14 reintub_rank_15 reintub_rank_16 reintub_rank_17 reintub_rank_18 reintub_rank_19 reintub_rank_20 reintub_rank_21 reintub_rank_22 reintub_rank_23 reintub_rank_25 reintub_rank_26 reintub_rank_27 _merge_reintub
 
 [ ] TODO: useful way to synthesize these? 
@@ -1972,9 +1984,8 @@ drop endoscope_ emerg_op_in_icu_ emerg_op_out_icu_ pa_cath_ iv_fluid_rep_ cont_a
 
 
 /* Derivative Variables to create to facilitate easy analysis */ 
-//TODO: Day of first intubation?  (for comparison), etc. 
-//TODO: make first and last vars before merge? first_pre , last_post
-//TODO: make highest and lowest vars after merge [max] max_pre max_post
+//TODO: make first and last vars before merge? first_pre , last_post - e.g. egen first_day_with_ippv = min(day) if ippv == 1, by(mrn) // minimum day w IPPV flag = day of intubation.
+//TODO: make highest and lowest vars after merge [max] max_pre max_post - ***
 
 drop if missing(adj_day_indexed_transfer)
 reshape wide apache_3_score_day_ aps_day_ apache_4_hosp_mort_day_ apache_4_cum_mort_day_ crrt_ cont_iv_sed_ cont_nmb_ ecmo_ hfnc_ icu_intub_ ippv_ irrt_ mtp_ mult_pressors_ nippv_ one_pressor_ post_arrest_ prone_ reintub_ ttm_, i(mrn) j(adj_day_indexed_transfer)
