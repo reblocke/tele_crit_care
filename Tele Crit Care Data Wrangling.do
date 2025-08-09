@@ -2,8 +2,8 @@
 clear
 
 // Brian Locke, MD MSCI
-// Assistant Professor, Clinical Investigation. Intermountain Medical Center
-// Last updated Dec 26 2024
+// Assistant Professor of Research. Intermountain Medical Center
+// Last updated May 23 2025 
 
 /* 
 
@@ -494,6 +494,228 @@ reshape wide apache_3_score_day_ aps_day_ apache_4_hosp_mort_day_ apache_4_cum_m
 save missing_apache_merged, replace
 clear
 
+
+/* New Active Patients Apr 14 2025 */ 
+//Only 730 patients, 755 encounters
+
+import excel using "Raw Data/Apr 14 Data/Apr_14_2025_Active Treatments per Day.xlsx", sheet("Report 1") cellrange("B4:O1644") firstrow case(lower) clear
+
+ds, has(type string) //convert each string to 64 length (for later merging)
+local stringvars `r(varlist)'
+foreach var of local stringvars {
+    replace `var' = trim(`var')
+    recast str64 `var'
+}
+
+destring(mrn hospitalaccountnumber daysinoccurrences durationinfractionaldays), force replace
+keep if !missing(mrn)
+
+gen icu_admit_name = string(icuadmissiondatetime) + "-" + string(mrn, "%12.0f")
+label variable icu_admit_name "ICU-Identifier: Admit date - MRN"
+
+* Remove time-of-day; leave the day count unchanged
+foreach v in icuadmissiondatetime icudischargedatetime ///
+            proceduretreatmentstartdate proceduretreatmentstopdate ///
+			hospitaladmissiondatetime hospitaldischargedatetime {
+    replace `v' = floor(`v') if !missing(`v')
+    format `v' %td
+}
+
+* ensure stop date present
+replace proceduretreatmentstopdate = proceduretreatmentstartdate if missing(proceduretreatmentstopdate)
+
+* one record per calendar day
+gen int n_days = proceduretreatmentstopdate - proceduretreatmentstartdate + 1
+gen long _id   = _n
+expand n_days
+bys _id: gen int _off = _n - 1
+gen int procedure_date = proceduretreatmentstartdate + _off
+format procedure_date %td
+
+* APACHE day: admission day = 1
+gen int apacheday = procedure_date - icuadmissiondatetime + 1
+drop if apacheday < 1              // optional: discard pre-ICU events
+
+drop n_days _off _id
+
+/*
+
+* 2. Compute number of calendar days covered by the procedure
+*    (+1 so inclusive of both start and stop)
+gen int n_days = proceduretreatmentstopdate - proceduretreatmentstartdate + 1
+replace n_days = 1 if n_days < 1 | missing(n_days)
+//Different than daysinoccurences - unclear why?
+
+* 3. Save original row id, then expand data to one row per day
+gen long _orig_id = _n
+expand n_days
+
+* 4. Within each original record, index the expanded rows (0,1,2,…)
+bysort _orig_id: gen int _offset = _n - 1
+
+* 5. Derive the actual calendar date represented by each expanded row
+gen int procedure_date = proceduretreatmentstartdate + _offset
+format procedure_date %td
+
+* 6. Compute APACHE day: calendar days since ICU admission, starting at 1
+gen int apacheday = procedure_date - icuadmissiondatetime + 1
+
+* 7. House-keeping: remove helper variables
+drop n_days _offset _orig_id
+*/ 
+
+tab apacheday, plot
+drop if apacheday > 50
+
+quietly levelsof mrn, local(mrnLevels)
+quietly levelsof icu_admit_name, local(icuAdmitNameLevels)
+di "Number of unique MRN: " `: word count `mrnLevels''
+di "Number of unique ICU Admits: " `: word count `icuAdmitNameLevels''
+
+
+/* Rename and split variables active treatments to be suitable variable names */ 
+//This works by splitting out into binary variables, setting all the rows for the same 
+//admission x day to 1 if the procedure was performed, then elminiating duplicates
+gen act_av_pace = 1 if icuprocedureactivetreatmentt == "A/V Pacing"
+bysort icu_admit_name apacheday: egen act_av_pace_ = max(act_av_pace)
+drop act_av_pace
+label variable act_av_pace_ "A/V Pacing"
+gen barb_anesth = 1 if icuprocedureactivetreatmentt == "Barbiturate anesthesia"
+bysort icu_admit_name apacheday: egen barb_anesth_ = max(barb_anesth)
+drop barb_anesth
+label variable barb_anesth_ "Barbiturate anesthesia"
+gen crrt = 1 if icuprocedureactivetreatmentt == "CRRT" //TODO: reconcile this with the old apache dataset
+bysort icu_admit_name apacheday: egen crrt_ = max(crrt)
+drop crrt
+label variable crrt_ "CRRT"
+gen cardiovert = 1 if icuprocedureactivetreatmentt == "Cardioversion"
+bysort icu_admit_name apacheday: egen cardiovert_ = max(cardiovert)
+drop cardiovert
+label variable cardiovert_ "Cardioversion"
+gen cont_art_drug_inf = 1 if icuprocedureactivetreatmentt == "Continuous Arterial Drug Infusion"
+bysort icu_admit_name apacheday: egen cont_art_drug_inf_ = max(cont_art_drug_inf)
+drop cont_art_drug_inf
+label variable cont_art_drug_inf_ "Continuous Arterial Drug Infusion"
+gen cont_iv_sed = 1 if icuprocedureactivetreatmentt == "Continuous IV Sedation"
+bysort icu_admit_name apacheday: egen cont_iv_sed_ = max(cont_iv_sed)
+drop cont_iv_sed
+label variable cont_iv_sed_	"Continuous IV Sedation"
+gen cont_nmb = 1 if icuprocedureactivetreatmentt == "Continuous Neuromuscular Blockade"
+bysort icu_admit_name apacheday: egen cont_nmb_ = max(cont_nmb)
+drop cont_nmb
+label variable cont_nmb_ "Continuous Neuromuscular Blockade"
+gen cont_anti_arrh = 1 if icuprocedureactivetreatmentt == "Continuous antiarrhythmic"
+bysort icu_admit_name apacheday: egen cont_anti_arrh_ = max(cont_anti_arrh)
+drop cont_anti_arrh
+label variable cont_anti_arrh_ "Continuous antiarrhythmic"
+gen ecmo = 1 if icuprocedureactivetreatmentt == "ECMO"
+bysort icu_admit_name apacheday: egen ecmo_ = max(ecmo)
+drop ecmo
+label variable ecmo_ "ECMO"
+gen emerg_op_in_icu = 1 if icuprocedureactivetreatmentt == "Emergency Op procedures inside ICU"
+bysort icu_admit_name apacheday: egen emerg_op_in_icu_ = max(emerg_op_in_icu)
+drop emerg_op_in_icu
+label variable emerg_op_in_icu_ "Emergency Op procedures inside ICU"
+gen emerg_op_out_icu = 1 if icuprocedureactivetreatmentt == "Emergency Op procedures outside ICU"
+bysort icu_admit_name apacheday: egen emerg_op_out_icu_ = max(emerg_op_out_icu)
+drop emerg_op_out_icu
+label variable emerg_op_out_icu_ "Emergency Op procedures outside ICU"
+gen endoscope = 1 if icuprocedureactivetreatmentt == "Endoscopies"
+bysort icu_admit_name apacheday: egen endoscope_ = max(endoscope)
+drop endoscope
+label variable endoscope_ "Endoscopies"
+gen hfnc = 1 if icuprocedureactivetreatmentt == "HFNC"
+bysort icu_admit_name apacheday: egen hfnc_ = max(hfnc)
+drop hfnc
+label variable hfnc_ "HFNC"
+gen ippv = 1 if icuprocedureactivetreatmentt == "IPPV"
+bysort icu_admit_name apacheday: egen ippv_ = max(ippv)
+drop ippv
+label variable ippv_ "IPPV"
+gen irrt = 1 if icuprocedureactivetreatmentt == "IRRT"
+bysort icu_admit_name apacheday: egen irrt_ = max(irrt)
+drop irrt
+label variable irrt_ "IRRT"
+gen iv_vaso = 1 if icuprocedureactivetreatmentt == "IV Vasopressin"
+bysort icu_admit_name apacheday: egen iv_vaso_ = max(iv_vaso)
+drop iv_vaso
+label variable iv_vaso_ "IV Vasopressin"
+gen iv_fluid_rep = 1 if icuprocedureactivetreatmentt == "IV replacement excessive fluid loss"
+bysort icu_admit_name apacheday: egen iv_fluid_rep_ = max(iv_fluid_rep)
+drop iv_fluid_rep
+label variable iv_fluid_rep_ "IV replacement excessive fluid loss"
+gen ttm = 1 if icuprocedureactivetreatmentt == "Induced hypothermia"
+bysort icu_admit_name apacheday: egen ttm_ = max(ttm)
+drop ttm
+label variable ttm_ "Induced hypothermia"
+gen nippv = 1 if icuprocedureactivetreatmentt == "NIPPV"
+bysort icu_admit_name apacheday: egen nippv_ = max(nippv)
+drop nippv
+label variable nippv_ "NIPPV"
+gen icu_intub = 1 if icuprocedureactivetreatmentt == "Naso/Orotracheal Intubation in ICU"
+bysort icu_admit_name apacheday: egen icu_intub_ = max(icu_intub)
+drop icu_intub
+label variable icu_intub_ "Naso/Orotracheal Intubation in ICU"
+gen pa_cath = 1 if icuprocedureactivetreatmentt == "PA line (with or w/o CO measurement)"
+bysort icu_admit_name apacheday: egen pa_cath_ = max(pa_cath)
+drop pa_cath
+label variable pa_cath_ "PA line (with or w/o CO measurement)"
+gen post_arrest = 1 if icuprocedureactivetreatmentt == "Post Arrest (48 hours)"
+bysort icu_admit_name apacheday: egen post_arrest_ = max(post_arrest)
+drop post_arrest
+label variable post_arrest_ "Post Arrest (48 hours)"
+gen prone = 1 if icuprocedureactivetreatmentt == "Prone Positioning" //todo: reconcile
+bysort icu_admit_name apacheday: egen prone_ = max(prone)
+drop prone
+label variable prone_ "Prone Positioning"
+gen mtp = 1 if icuprocedureactivetreatmentt == "Rapid Blood Transfusion"
+bysort icu_admit_name apacheday: egen mtp_ = max(mtp)
+drop mtp
+label variable mtp_ "Rapid Blood Transfusion"
+gen reintub = 1 if icuprocedureactivetreatmentt == "Reintubation within 24 hours"
+bysort icu_admit_name apacheday: egen reintub_ = max(reintub)
+drop reintub
+label variable reintub_ "Reintubation within 24 hours"
+gen one_pressor = 1 if icuprocedureactivetreatmentt == "Single Vasoactive drug infusion"
+bysort icu_admit_name apacheday: egen one_pressor_ = max(one_pressor)
+drop one_pressor
+label variable one_pressor_ "Single Vasoactive drug infusion"
+gen tx_acid_base = 1 if icuprocedureactivetreatmentt == "Tx complex metab bal, acidosis/alkalosis"
+bysort icu_admit_name apacheday: egen tx_acid_base_ = max(tx_acid_base)
+drop tx_acid_base
+label variable tx_acid_base_ "Tx complex metab bal, acidosis/alkalosis"
+gen vad = 1 if icuprocedureactivetreatmentt == "VAD"
+bysort icu_admit_name apacheday: egen vad_ = max(vad)
+drop vad
+label variable vad_ "VAD"
+gen mult_pressors = 1 if icuprocedureactivetreatmentt == "Vasoactive > one"
+bysort icu_admit_name apacheday: egen mult_pressors_ = max(mult_pressors)
+drop mult_pressors
+label variable mult_pressors_ "Vasoactive > one"
+gen ventriculost = 1 if icuprocedureactivetreatmentt == "Ventriculostomy"
+bysort icu_admit_name apacheday: egen ventriculost_ = max(ventriculost)
+drop ventriculost
+label variable ventriculost_ "Ventriculostomy"
+
+tab icuprocedureactivetreatmentt
+drop icuprocedureactivetreatmentt
+
+duplicates drop icu_admit_name apacheday act_av_pace_ barb_anesth_ crrt_ cardiovert_ cont_art_drug_inf_ cont_iv_sed_ cont_nmb_ cont_anti_arrh_ ecmo_ emerg_op_in_icu_ emerg_op_out_icu endoscope_ hfnc_ ippv_ irrt_ iv_vaso_ iv_fluid_rep_ ttm_ nippv_ icu_intub_ pa_cath_ post_arrest_ prone_ mtp_ reintub_ one_pressor_ tx_acid_base_ vad_ mult_pressors_ ventriculost_, force
+
+//Have to drop some to ensure under the 2400 variables limit of STATA BE 
+//[eased since going down to 50 days max]. Note, we drop more later too. 
+drop act_av_pace_ barb_anesth_ iv_vaso_ vad_ ventriculost_ tx_acid_base_
+
+drop proceduretreatmentstartdate proceduretreatmentstopdate daysinoccurrences durationinfractionaldays procedure_date //these are now encoded in apacheday, relative to ICU admit. 
+  
+reshape wide crrt_ cardiovert_ cont_art_drug_inf_ cont_iv_sed_ cont_nmb_ cont_anti_arrh_ ecmo_ emerg_op_in_icu_ emerg_op_out_icu endoscope_ hfnc_ ippv_ irrt_ iv_fluid_rep_ ttm_ nippv_ icu_intub_ pa_cath_ post_arrest_ prone_ mtp_ reintub_ one_pressor_ mult_pressors_ , i(icu_admit_name) j(apacheday) 
+
+save active_tx_per_day_new, replace
+clear
+
+
+
+
 //3740 patients; 4118 admits
 //Active treatments per day.xlsx
 import excel using "Raw Data\Active treatments per day.xlsx", sheet("Report 1") cellrange("B4:L190444") firstrow case(lower) clear
@@ -509,6 +731,7 @@ keep if !missing(mrn)
 
 gen icu_admit_name = string(icuadmissiondatetime) + "-" + string(mrn, "%12.0f")
 label variable icu_admit_name "ICU-Identifier: Admit date - MRN"
+
 
 tab apacheday, plot
 drop if apacheday > 50
@@ -698,6 +921,7 @@ save cum_score_per_day, replace
 clear
 
 
+
 /* ----------------
 
 Merge datasets on ICU admission 
@@ -706,7 +930,7 @@ Merge datasets on ICU admission
 
 clear
 use info_apache_mort_data //3718 patients, 4123 admits
-merge 1:1 icu_admit_name using active_tx_per_day, update generate(_merge_active_tx)
+merge 1:1 icu_admit_name using active_tx_per_day_new, update generate(_merge_active_tx)
 merge 1:1 icu_admit_name using crrt_data, update generate(_merge_crrt)
 merge 1:1 icu_admit_name using nmb_data, update generate(_merge_nmb) 
 merge 1:1 icu_admit_name using proning_data, update generate(_merge_proning) 
@@ -1988,12 +2212,227 @@ drop endoscope_ emerg_op_in_icu_ emerg_op_out_icu_ pa_cath_ iv_fluid_rep_ cont_a
 //TODO: make highest and lowest vars after merge [max] max_pre max_post - ***
 
 drop if missing(adj_day_indexed_transfer)
+
+/* Subsequent code that can be used to merge with the non-intubated patients.*/ 
+
 reshape wide apache_3_score_day_ aps_day_ apache_4_hosp_mort_day_ apache_4_cum_mort_day_ crrt_ cont_iv_sed_ cont_nmb_ ecmo_ hfnc_ icu_intub_ ippv_ irrt_ mtp_ mult_pressors_ nippv_ one_pressor_ post_arrest_ prone_ reintub_ ttm_, i(mrn) j(adj_day_indexed_transfer)
 
 rename pre_or_post_transfer transfer_occured //indicator that a transfer was involved.
 
 
+
+/* Some initial analysis only on patients who transferred */ 
+preserve 
+
+keep if ippv_101
+keep mrn apache_3_score_day_* aps_day_* apache_4_hosp_mort_day_* apache_4_cum_mort_day_*
+
+
+* Make sure you have these for each observation
+gen day99  = 99
+gen day100 = 100
+gen day101 = 101
+gen day102 = 102
+gen day103 = 103
+gen day104 = 104
+gen day105 = 105
+
+twoway ///
+    (pcspike apache_3_score_day_99 day99 apache_3_score_day_100 day100, sort lcolor(gs10)) ///
+    (pcspike apache_3_score_day_100 day100 apache_3_score_day_101 day101, sort lcolor(gs10)) ///
+    (pcspike apache_3_score_day_101 day101 apache_3_score_day_102 day102, sort lcolor(gs10)) ///
+    (pcspike apache_3_score_day_102 day102 apache_3_score_day_103 day103, sort lcolor(gs10)) ///
+	(pcspike apache_3_score_day_103 day103 apache_3_score_day_104 day104, sort lcolor(gs10)) ///
+	(pcspike apache_3_score_day_104 day104 apache_3_score_day_105 day105, sort lcolor(gs10)) ///
+    (scatter apache_3_score_day_99 day99,   msymbol(O) mcolor(blue)) ///
+    (scatter apache_3_score_day_100 day100, msymbol(O) mcolor(blue)) ///
+    (scatter apache_3_score_day_101 day101, msymbol(O) mcolor(blue)) ///
+    (scatter apache_3_score_day_102 day102, msymbol(O) mcolor(blue)) ///
+    (scatter apache_3_score_day_103 day103, msymbol(O) mcolor(blue)) ///
+	(scatter apache_3_score_day_104 day104, msymbol(O) mcolor(blue)) ///
+	(scatter apache_3_score_day_105 day105, msymbol(O) mcolor(blue)), ///
+    title("APACHE III Score Trajectories, Day 99 to 105") ///
+    ytitle("APACHE III Score") ///
+    xtitle("Day") ///
+    xlabel(99(1)105)
+
+
+twoway ///
+    (pcspike aps_day_99   day99  aps_day_100 day100, sort lcolor(gs10)) ///
+    (pcspike aps_day_100  day100 aps_day_101 day101, sort lcolor(gs10)) ///
+    (pcspike aps_day_101  day101 aps_day_102 day102, sort lcolor(gs10)) ///
+    (pcspike aps_day_102  day102 aps_day_103 day103, sort lcolor(gs10)) ///
+    (pcspike aps_day_103  day103 aps_day_104 day104, sort lcolor(gs10)) ///
+    (pcspike aps_day_104  day104 aps_day_105 day105, sort lcolor(gs10)) ///
+    (scatter aps_day_99   day99,  msymbol(O) mcolor(red)) ///
+    (scatter aps_day_100  day100, msymbol(O) mcolor(red)) ///
+    (scatter aps_day_101  day101, msymbol(O) mcolor(red)) ///
+    (scatter aps_day_102  day102, msymbol(O) mcolor(red)) ///
+    (scatter aps_day_103  day103, msymbol(O) mcolor(red)) ///
+    (scatter aps_day_104  day104, msymbol(O) mcolor(red)) ///
+    (scatter aps_day_105  day105, msymbol(O) mcolor(red)), ///
+    title("APS Trajectories, Day 99 to 105") ///
+    ytitle("APS") ///
+    xtitle("Day") ///
+    xlabel(99(1)105)
+
+
+twoway ///
+    (pcspike apache_4_hosp_mort_day_99  day99  apache_4_hosp_mort_day_100 day100, sort lcolor(gs10)) ///
+    (pcspike apache_4_hosp_mort_day_100 day100 apache_4_hosp_mort_day_101 day101, sort lcolor(gs10)) ///
+    (pcspike apache_4_hosp_mort_day_101 day101 apache_4_hosp_mort_day_102 day102, sort lcolor(gs10)) ///
+    (pcspike apache_4_hosp_mort_day_102 day102 apache_4_hosp_mort_day_103 day103, sort lcolor(gs10)) ///
+    (pcspike apache_4_hosp_mort_day_103 day103 apache_4_hosp_mort_day_104 day104, sort lcolor(gs10)) ///
+    (pcspike apache_4_hosp_mort_day_104 day104 apache_4_hosp_mort_day_105 day105, sort lcolor(gs10)) ///
+    (scatter apache_4_hosp_mort_day_99  day99,  msymbol(O) mcolor(orange)) ///
+    (scatter apache_4_hosp_mort_day_100 day100, msymbol(O) mcolor(orange)) ///
+    (scatter apache_4_hosp_mort_day_101 day101, msymbol(O) mcolor(orange)) ///
+    (scatter apache_4_hosp_mort_day_102 day102, msymbol(O) mcolor(orange)) ///
+    (scatter apache_4_hosp_mort_day_103 day103, msymbol(O) mcolor(orange)) ///
+    (scatter apache_4_hosp_mort_day_104 day104, msymbol(O) mcolor(orange)) ///
+    (scatter apache_4_hosp_mort_day_105 day105, msymbol(O) mcolor(orange)), ///
+    title("APACHE IV Hospital Mortality, Day 99 to 105") ///
+    ytitle("Hospital Mortality") ///
+    xtitle("Day") ///
+    xlabel(99(1)105)
 	
+
+twoway ///
+    (pcspike apache_4_cum_mort_day_99  day99  apache_4_cum_mort_day_100 day100, sort lcolor(gs10)) ///
+    (pcspike apache_4_cum_mort_day_100 day100 apache_4_cum_mort_day_101 day101, sort lcolor(gs10)) ///
+    (pcspike apache_4_cum_mort_day_101 day101 apache_4_cum_mort_day_102 day102, sort lcolor(gs10)) ///
+    (pcspike apache_4_cum_mort_day_102 day102 apache_4_cum_mort_day_103 day103, sort lcolor(gs10)) ///
+    (pcspike apache_4_cum_mort_day_103 day103 apache_4_cum_mort_day_104 day104, sort lcolor(gs10)) ///
+    (pcspike apache_4_cum_mort_day_104 day104 apache_4_cum_mort_day_105 day105, sort lcolor(gs10)) ///
+    (scatter apache_4_cum_mort_day_99  day99,  msymbol(O) mcolor(green)) ///
+    (scatter apache_4_cum_mort_day_100 day100, msymbol(O) mcolor(green)) ///
+    (scatter apache_4_cum_mort_day_101 day101, msymbol(O) mcolor(green)) ///
+    (scatter apache_4_cum_mort_day_102 day102, msymbol(O) mcolor(green)) ///
+    (scatter apache_4_cum_mort_day_103 day103, msymbol(O) mcolor(green)) ///
+    (scatter apache_4_cum_mort_day_104 day104, msymbol(O) mcolor(green)) ///
+    (scatter apache_4_cum_mort_day_105 day105, msymbol(O) mcolor(green)), ///
+    title("APACHE IV Cumulative Mortality, Day 99 to 105") ///
+    ytitle("Cumulative Mortality") ///
+    xtitle("Day") ///
+    xlabel(99(1)105)
+	
+	
+
+*--- Reshape to long format
+reshape long apache_3_score_day_ aps_day_ apache_4_hosp_mort_day_ apache_4_cum_mort_day_, ///
+    i(mrn) ///           <- your unique identifier
+    j(day) ///          <- new variable for day
+
+* Rename the variables (optional but often helpful)
+rename apache_3_score_day_  apache_3_score
+rename aps_day_             aps
+rename apache_4_hosp_mort_day_  apache_4_hosp_mort
+rename apache_4_cum_mort_day_   apache_4_cum_mort
+
+replace day = day - 100
+keep if inrange(day, -2, 5) //range for now
+
+* Collapse to get means and SDs by day
+collapse (mean) apache_3_score_mean = apache_3_score    ///
+         aps_mean = aps                                   ///
+         apache_4_hosp_mort_mean = apache_4_hosp_mort      ///
+         apache_4_cum_mort_mean  = apache_4_cum_mort       ///
+         (sd)   apache_3_score_sd   = apache_3_score       ///
+         aps_sd = aps                                      ///
+         apache_4_hosp_mort_sd   = apache_4_hosp_mort        ///
+         apache_4_cum_mort_sd    = apache_4_cum_mort         ///
+         (count) apache_3_score_count = apache_3_score      ///
+         (count) aps_count = aps                           ///
+         (count) apache_4_hosp_mort_count = apache_4_hosp_mort ///
+         (count) apache_4_cum_mort_count  = apache_4_cum_mort,  ///
+         by(day)
+		 
+		 
+* The collapse command creates:
+*   apache_3_score_mean, apache_3_score_sd,
+*   aps_mean, aps_sd,
+*   apache_4_hosp_mort_mean, apache_4_hosp_mort_sd,
+*   apache_4_cum_mort_mean, apache_4_cum_mort_sd
+
+* Optionally, generate standard error (SE = SD / sqrt(n)) if you had multiple observations per day
+* (Note: If each day has different N, you need to store N in the collapse as well)
+* e.g.:
+* collapse (count) apache_3_score (mean) apache_3_score (sd) apache_3_score, by(day)
+* rename apache_3_score_count n
+* generate apache_3_score_se = apache_3_score_sd / sqrt(n)
+
+
+* After collapse, you have:
+*   apache_3_score_mean apache_3_score_sd apache_3_score_count
+*   aps_mean aps_sd aps_count
+*   apache_4_hosp_mort_mean apache_4_hosp_mort_sd apache_4_hosp_mort_count
+*   apache_4_cum_mort_mean  apache_4_cum_mort_sd  apache_4_cum_mort_count
+* + 'day' for grouping.
+
+* 3. Compute 95% CI for each variable
+* (Using normal approximation; for small samples consider a t-based approach.)
+
+* APACHE III Score
+gen double apache_3_score_se = apache_3_score_sd / sqrt(apache_3_score_count)
+gen double apache_3_score_lb = apache_3_score_mean - 1.96 * apache_3_score_se
+gen double apache_3_score_ub = apache_3_score_mean + 1.96 * apache_3_score_se
+
+* APS
+gen double aps_se = aps_sd / sqrt(aps_count)
+gen double aps_lb = aps_mean - 1.96 * aps_se
+gen double aps_ub = aps_mean + 1.96 * aps_se
+
+* APACHE IV Hospital Mortality
+gen double apache_4_hosp_mort_se = apache_4_hosp_mort_sd / sqrt(apache_4_hosp_mort_count)
+gen double apache_4_hosp_mort_lb = apache_4_hosp_mort_mean - 1.96 * apache_4_hosp_mort_se
+gen double apache_4_hosp_mort_ub = apache_4_hosp_mort_mean + 1.96 * apache_4_hosp_mort_se
+
+* APACHE IV Cumulative Mortality
+gen double apache_4_cum_mort_se = apache_4_cum_mort_sd / sqrt(apache_4_cum_mort_count)
+gen double apache_4_cum_mort_lb = apache_4_cum_mort_mean - 1.96 * apache_4_cum_mort_se
+gen double apache_4_cum_mort_ub = apache_4_cum_mort_mean + 1.96 * apache_4_cum_mort_se
+
+* 4. Plot each variable in a separate graph using rcap and connected
+twoway ///
+    (rcap apache_3_score_lb apache_3_score_ub day, sort lcolor(gs8)) ///
+    (connected apache_3_score_mean day, sort lcolor(blue) msymbol(circle)), ///
+    title("APACHE III Score by Day") ///
+    ytitle("Mean & 95% CI") ///
+    xtitle("Day")
+
+twoway ///
+    (rcap aps_lb aps_ub day, sort lcolor(gs8)) ///
+    (connected aps_mean day, sort lcolor(red) msymbol(circle)), ///
+    title("APS by Day") ///
+    ytitle("Mean & 95% CI") ///
+    xtitle("Day")
+
+twoway ///
+    (rcap apache_4_hosp_mort_lb apache_4_hosp_mort_ub day, sort lcolor(gs8)) ///
+    (connected apache_4_hosp_mort_mean day, sort lcolor(orange) msymbol(circle)), ///
+    title("APACHE IV Hospital Mortality by Day") ///
+    ytitle("Mean & 95% CI") ///
+    xtitle("Day")
+
+twoway ///
+    (rcap apache_4_cum_mort_lb apache_4_cum_mort_ub day, sort lcolor(gs8)) ///
+    (connected apache_4_cum_mort_mean day, sort lcolor(green) msymbol(circle)), ///
+    title("APACHE IV Cumulative Mortality by Day") ///
+    ytitle("Mean & 95% CI") ///
+    xtitle("Day")
+
+* 5. Restore original data if needed
+restore
+
+
+/* 
+End exploratory data analyses 
+*/
+
+
+
+
+
 	
 	
 
@@ -2136,10 +2575,26 @@ ANTHONY,KYLE C - 540141226 - bounced within a day at logan, then later transfer 
 
 
 
+/* Preliminary Analysis */ 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
 
 /* --------------
-These are redundant data-sets that are not currently needed; kept here fore now
+These are redundant data-sets that are not currently needed; kept here for now
 ---------------*/ 
 
 //Active treatments per admit.xlsx - also 3740 patients
@@ -2191,7 +2646,7 @@ di "Number of unique ICU Admits: " `: word count `icuAdmitNameLevels''
 
 
 
-
+*/ 
 
 
 
@@ -2208,6 +2663,59 @@ forvalues i = 1/`=_N' {
 
 list mrn pre_transfer icu_los_int apache_3_score_day_last_pre apache_3_score_day* in 51/60
 */ 
+
+
+
+
+/**************************************************************************
+  Compare MRN coverage between two files while retaining one ICU-admission
+  date per MRN.
+  * adjust the name of the ICU-admission variable below if needed
+**************************************************************************/
+
+/* ----------- 1.  Prepare list from OLD file -------------------------- */
+use active_tx_per_day, clear
+
+/* identify the ICU-admission variable */
+local icuvar icuadmissiondatetime    // <-- change if your var differs
+
+/* convert MRN to string if stored numeric */
+capture confirm string variable mrn
+if _rc {
+    tostring mrn, replace format(%18.0f) force
+}
+
+/* keep MRN and ICU-admission date only */
+keep mrn `icuvar'
+
+/* retain a single (earliest) ICU-admission date per MRN */
+bysort mrn (`icuvar'): keep if _n==1
+
+/* save temporary file */
+tempfile mrn_old
+save "`mrn_old'", replace
+
+
+
+/* ----------- 2.  Prepare list from NEW file -------------------------- */
+use active_tx_per_day_new, clear
+local icuvar icuadmissiondatetime    // same variable name assumed
+
+capture confirm string variable mrn
+if _rc {
+    tostring mrn, replace format(%18.0f) force
+}
+
+keep mrn `icuvar'
+bysort mrn (`icuvar'): keep if _n==1
+
+/* ----------- 3.  Merge & inspect ------------------------------------ */
+merge 1:1 mrn using "`mrn_old'"
+
+label define merge_lbl 1 "New only" 2 "Old only" 3 "Both", replace
+label values _merge merge_lbl
+
+tab _merge, missing
 
 
 
