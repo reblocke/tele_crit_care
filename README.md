@@ -3,6 +3,17 @@
 
 ## Repository Notes
 
+### Description
+
+Analysis of tele-critical care transfers during COVID
+
+### Repository Layout
+
+- `LICENSE`
+- `README.md`
+- `Tele Crit Care Analysis.do`
+- `Tele Crit Care Data Wrangling.do`
+
 ### Project Status
 
 No public manuscript version is linked. Keep documentation to repository summaries and do not add manuscript text.
