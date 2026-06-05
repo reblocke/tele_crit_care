@@ -12,3 +12,4 @@
 # Except for the "Results and Figures" directory
 /Results and Figures/
 /Raw Data/
+!llms.txt
