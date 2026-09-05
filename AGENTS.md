@@ -14,13 +14,7 @@ Analysis of tele-critical care transfers during COVID
 - Inspect scripts/notebooks before running them; do not assume generated outputs are current.
 
 ## Workflow
-From the repository root, use this as the initial run guidance:
-
-```bash
-Review Stata workflow
-```
-
-If the command is a placeholder, refine it after reading the local scripts and existing README.
+The legacy entry points are `Tele Crit Care Data Wrangling.do` followed by `Tele Crit Care Analysis.do`. Their input paths and execution prerequisites are not documented as a portable command. Inspect the affected script and approved local input configuration before an authorized run; do not treat “Review Stata workflow” as executable shell text. Report the unresolved runtime setup rather than substituting clinical inputs.
 
 ## Verification Before Publishing Changes
 - Run `git diff --check`.
